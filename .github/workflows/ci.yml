@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (GCC, Qt 6.8)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev \
+            libxkbcommon-x11-0 libegl1 libfontconfig1 fonts-noto-cjk
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          cache: true
+
+      - name: Git identity for test repositories
+        run: |
+          git config --global user.name "QtGitStudio CI"
+          git config --global user.email "ci@qtgitstudio.invalid"
+          git config --global init.defaultBranch main
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 600 -j 2 -E "^test_perf_"
+
+      - name: Commit graph benchmark
+        if: hashFiles('tests/test_perf_commit_graph.cpp') != ''
+        run: ctest --test-dir build --output-on-failure --timeout 900 -R "^test_perf_" -V
+
+  windows:
+    name: Windows (MinGW, Qt 6.8)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    # Optional for now: the Windows job exercises the real Credential
+    # Manager and GUI subsystem checks; Linux is the required gate.
+    continue-on-error: true
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt + MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          arch: win64_mingw
+          tools: 'tools_mingw1310'
+          cache: true
+
+      - name: Put MinGW on PATH
+        shell: bash
+        run: echo "$IQTA_TOOLS/mingw1310_64/bin" >> "$GITHUB_PATH"
+
+      - name: Git identity for test repositories
+        run: |
+          git config --global user.name "QtGitStudio CI"
+          git config --global user.email "ci@qtgitstudio.invalid"
+          git config --global init.defaultBranch main
+          git config --global core.autocrlf false
+
+      - name: Configure
+        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build --parallel 4
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 600 -E "^test_perf_"
