@@ -45,11 +45,16 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure --timeout 600 -j 2 -E "^test_perf_"
+        run: ctest --test-dir build --output-on-failure --timeout 600 -j 2 -LE perf
 
       - name: Commit graph benchmark
-        if: hashFiles('tests/test_perf_commit_graph.cpp') != ''
-        run: ctest --test-dir build --output-on-failure --timeout 900 -R "^test_perf_" -V
+        env:
+          QGS_PERF_OUTPUT: ${{ runner.temp }}/perf.md
+        run: |
+          echo "| commits | total (incl. feature) | load ms | parse ms | graph60 ms | graphAll ms | relation ms | generate ms |" > "$QGS_PERF_OUTPUT"
+          echo "|---|---|---|---|---|---|---|---|" >> "$QGS_PERF_OUTPUT"
+          ctest --test-dir build --output-on-failure --timeout 1800 -L perf -V
+          { echo "### Commit graph benchmark ($(nproc) vCPU, ubuntu-24.04)"; cat "$QGS_PERF_OUTPUT"; } >> "$GITHUB_STEP_SUMMARY"
 
   windows:
     name: Windows (MinGW, Qt 6.8)
@@ -89,4 +94,4 @@ jobs:
         run: cmake --build build --parallel 4
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure --timeout 600 -E "^test_perf_"
+        run: ctest --test-dir build --output-on-failure --timeout 600 -LE perf

@@ -76,6 +76,10 @@ add_test_target(test_conflict_resolver test_conflict_resolver.cpp)
 add_test_target_standalone(test_conflict_resolution_service test_conflict_resolution_service.cpp)
 add_test_target_standalone(test_conflict_workflow test_conflict_workflow.cpp)
 add_test_target_standalone(test_text_encoding test_text_encoding.cpp)
+# Benchmark (slow): CI runs it in a separate step; locally use
+# `ctest -L perf` or run the executable directly.
+add_test_target_standalone(test_perf_commit_graph test_perf_commit_graph.cpp)
+set_tests_properties(test_perf_commit_graph PROPERTIES LABELS perf TIMEOUT 1800)
 
 # Keep the standard `ctest` entry point self-contained on every platform:
 #  - QT_QPA_PLATFORM=offscreen so GUI tests run headless (CI, SSH).
