@@ -94,6 +94,9 @@ private:
     void loadBranches();
     void loadCommits();
     void buildScene(bool preserveSelection = false);
+    // Hash of the commit carrying the HEAD marker (not necessarily the
+    // first entry: commits sharing a timestamp can be listed in any order).
+    QString headCommitHash() const;
     void scheduleViewportRelayout();
     qreal logicalViewportWidth() const;
 

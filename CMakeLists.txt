@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 project(QtGitStudio VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -87,8 +87,9 @@ add_library(QtGitStudio_lib STATIC
     src/DiffPreviewDialog.h
     src/BranchRelationWidget.cpp
     src/BranchRelationWidget.h
-    src/CredentialStoreWin.cpp
-    src/CredentialStoreWin.h
+    src/CredentialStore.h
+    src/CredentialStoreFactory.cpp
+    src/CredentialStoreFactory.h
     src/BranchGraphViewerDialog.cpp
     src/BranchGraphViewerDialog.h
     src/RepositoryResolver.cpp
@@ -109,8 +110,17 @@ add_library(QtGitStudio_lib STATIC
 target_include_directories(QtGitStudio_lib PUBLIC src)
 target_link_libraries(QtGitStudio_lib PUBLIC Qt6::Widgets Qt6::Network)
 # v4-P6-18 P1-1: Windows Credential Manager (CredWriteW/CredReadW).
+# Credential backend is selected at compile time behind CredentialStore.
 if (WIN32)
+    target_sources(QtGitStudio_lib PRIVATE
+        src/CredentialStoreWin.cpp
+        src/CredentialStoreWin.h)
     target_link_libraries(QtGitStudio_lib PUBLIC advapi32)
+else()
+    # Portable fallback: in-memory only, never written to disk.
+    target_sources(QtGitStudio_lib PRIVATE
+        src/CredentialStoreSession.cpp
+        src/CredentialStoreSession.h)
 endif()
 
 # Executable
