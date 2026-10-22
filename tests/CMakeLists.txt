@@ -75,10 +75,26 @@ add_test_target_standalone(test_conflict_marker_parser test_conflict_marker_pars
 add_test_target(test_conflict_resolver test_conflict_resolver.cpp)
 add_test_target_standalone(test_conflict_resolution_service test_conflict_resolution_service.cpp)
 add_test_target_standalone(test_conflict_workflow test_conflict_workflow.cpp)
+add_test_target_standalone(test_text_encoding test_text_encoding.cpp)
+# Benchmark (slow): CI runs it in a separate step; locally use
+# `ctest -L perf` or run the executable directly.
+add_test_target_standalone(test_perf_commit_graph test_perf_commit_graph.cpp)
+set_tests_properties(test_perf_commit_graph PROPERTIES LABELS perf TIMEOUT 1800)
 
-# Keep the standard `ctest` entry point self-contained on Windows.  The
-# developer shell often has Qt/MinGW on PATH, while a clean CTest invocation
-# does not; every Qt test therefore receives the same runtime directories.
+# Keep the standard `ctest` entry point self-contained on every platform:
+#  - QT_QPA_PLATFORM=offscreen so GUI tests run headless (CI, SSH).
+#  - Test repositories are created with plain `git init` and expect the
+#    branch to be called `main`; inject init.defaultBranch through
+#    GIT_CONFIG_COUNT (git >= 2.31) so the developer's / runner's global
+#    git config cannot change the outcome.
+set(_qgs_test_env
+    "QT_QPA_PLATFORM=set:offscreen"
+    "GIT_CONFIG_COUNT=set:1"
+    "GIT_CONFIG_KEY_0=set:init.defaultBranch"
+    "GIT_CONFIG_VALUE_0=set:main")
+# On Windows the developer shell often has Qt/MinGW on PATH, while a clean
+# CTest invocation does not; every Qt test therefore receives the same
+# runtime directories.
 if(WIN32)
     get_target_property(_qt_core_dll Qt6::Core IMPORTED_LOCATION_RELEASE)
     if(NOT _qt_core_dll)
@@ -86,10 +102,13 @@ if(WIN32)
     endif()
     get_filename_component(_qt_runtime_dir "${_qt_core_dll}" DIRECTORY)
     get_filename_component(_mingw_runtime_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
-    get_property(_qgs_test_names DIRECTORY PROPERTY TESTS)
-    foreach(_qgs_test IN LISTS _qgs_test_names)
-        set_tests_properties(${_qgs_test} PROPERTIES
-            ENVIRONMENT_MODIFICATION
-                "QT_QPA_PLATFORM=set:offscreen;PATH=path_list_prepend:${_qt_runtime_dir};PATH=path_list_prepend:${_mingw_runtime_dir};PATH=path_list_prepend:$<TARGET_FILE_DIR:QtGitStudio>")
-    endforeach()
+    list(APPEND _qgs_test_env
+        "PATH=path_list_prepend:${_qt_runtime_dir}"
+        "PATH=path_list_prepend:${_mingw_runtime_dir}"
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:QtGitStudio>")
 endif()
+get_property(_qgs_test_names DIRECTORY PROPERTY TESTS)
+foreach(_qgs_test IN LISTS _qgs_test_names)
+    set_tests_properties(${_qgs_test} PROPERTIES
+        ENVIRONMENT_MODIFICATION "${_qgs_test_env}")
+endforeach()

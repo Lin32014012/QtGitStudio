@@ -189,7 +189,11 @@ private slots:
         QTemporaryDir temp;
         QVERIFY(temp.isValid());
         const QString helper = QDir(QCoreApplication::applicationDirPath())
-                                   .filePath(QStringLiteral("test_git_marker_helper.exe"));
+                                   .filePath(QStringLiteral("test_git_marker_helper")
+#ifdef Q_OS_WIN
+                                             + QStringLiteral(".exe")
+#endif
+                                   );
         QVERIFY2(QFileInfo::exists(helper), qPrintable(helper));
         const QString gitA = QDir(temp.path()).filePath(QStringLiteral("git-A.exe"));
         const QString gitB = QDir(temp.path()).filePath(QStringLiteral("git-B.exe"));

@@ -16,7 +16,7 @@
 #include "GitEnvironmentDialog.h"
 #include "GitCommandExecutor.h"
 #include "GitHubAccountService.h"
-#include "CredentialStoreWin.h"
+#include "CredentialStoreFactory.h"
 #include "GitHubAccountDialog.h"
 #include "GitTagService.h"
 #include "TagManagerDialog.h"
@@ -846,7 +846,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // v4-P6-18 P1-1: persist the account in the Windows Credential
     // Manager (no plain-text token files); restore() picks it up so a
     // restart keeps showing "已连接".
-    m_githubAccountService->setCredentialStore(new CredentialStoreWin(this));
+    m_githubAccountService->setCredentialStore(createPlatformCredentialStore(this));
     m_githubAccountService->restore();
     // v4-P6-18 P1-2: keep the home dashboard in sync after login/logout.
     connect(m_githubAccountService, &GitHubAccountService::stateChanged,

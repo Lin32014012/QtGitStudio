@@ -681,6 +681,15 @@ void BranchRelationWidget::loadBranches() {
     }
 }
 
+QString BranchRelationWidget::headCommitHash() const {
+    for (const auto &c : m_commits) {
+        if (c.isHead) {
+            return c.hash;
+        }
+    }
+    return QString();
+}
+
 void BranchRelationWidget::loadCommits() {
     m_commits.clear();
     if (m_repositoryPath.isEmpty()) {
@@ -882,10 +891,7 @@ void BranchRelationWidget::buildScene(bool preserveSelection) {
     if (currentOnly) {
         // Walk first-parent chain from HEAD.
         const QString headHash =
-            m_commits.isEmpty() ? QString()
-                                : (m_commits.first().isHead
-                                       ? m_commits.first().hash
-                                       : QString());
+            headCommitHash();
         if (!headHash.isEmpty()) {
             const QMap<QString, CommitNode> byHash =
                 [this]() {
@@ -956,10 +962,7 @@ void BranchRelationWidget::buildScene(bool preserveSelection) {
     }
         // Always keep the HEAD chain so the current line is visible.
         const QString headHash =
-            m_commits.isEmpty() ? QString()
-                                : (m_commits.first().isHead
-                                       ? m_commits.first().hash
-                                       : QString());
+            headCommitHash();
         if (!headHash.isEmpty()) {
             const QMap<QString, CommitNode> byHash =
                 [this]() {

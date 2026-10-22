@@ -70,6 +70,9 @@ private slots:
         QVERIFY(!r.success);
         QVERIFY(r.category == ProjectController::CloneFailureCategory::InvalidSource
                 || r.category == ProjectController::CloneFailureCategory::Network
+                // Sandboxed/proxied CI networks may terminate the TLS
+                // handshake instead of failing DNS resolution.
+                || r.category == ProjectController::CloneFailureCategory::Tls
                 || r.category == ProjectController::CloneFailureCategory::Unknown);
     }
 

@@ -202,7 +202,7 @@ void TestMainWindow::testApplicationIconInheritance() {
 
 void TestMainWindow::testVersionLabel() {
     MainWindow window;
-    QCOMPARE(window.getVersion(), QString("1.0.0"));
+    QCOMPARE(window.getVersion(), QStringLiteral(QTGITSTUDIO_VERSION));
 }
 
 void TestMainWindow::testGoHomeButton() {

@@ -132,7 +132,8 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    QString version() const { return "1.0.0"; }
+    // Defined by CMake from project(QtGitStudio VERSION ...).
+    QString version() const { return QStringLiteral(QTGITSTUDIO_VERSION); }
     QString selectedBranch() const;
     void loadProject(const QString &path,
                      QPushButton *feedbackButton = nullptr,

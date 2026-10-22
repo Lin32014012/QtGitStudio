@@ -1,6 +1,9 @@
 #include "ConflictResolutionPlan.h"
 #include "GitConflictResolutionService.h"
 #include "GitConflictService.h"
+#include "ConflictMarkerParser.h"
+#include "TextEncoding.h"
+#include "gbk_fixture.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -228,6 +231,8 @@ private slots:
     void deletedByUsAndThemKeepPlansApply();
     void pathsWithDashSpacesAndUnicodeStageExactly();
     void preservesCrLfAndUtf8Bom();
+    void gbkConflictParsesAndWritesBackAsGbk();
+    void undecodableEncodingIsRefusedWithoutWriting();
     void externalConflictChangeIsRefused();
     void externalWorktreeChangeIsRefused();
     void staleRepositorySessionIsRefused();
@@ -354,6 +359,57 @@ void TestConflictResolutionService::preservesCrLfAndUtf8Bom() {
     QVERIFY(apply(&service, planFor(fixture->repository, snapshot.files.first(),
                                      service.repositoryGeneration(), QStringLiteral("chosen\nline\n"))).success());
     QCOMPARE(readFile(fixture->repository, fixture->path), bom + "chosen\r\nline\r\n");
+}
+
+void TestConflictResolutionService::gbkConflictParsesAndWritesBackAsGbk() {
+    if (!TextEncoding::isGb18030Available()) {
+        QSKIP("GB18030 codec not available in this Qt build");
+    }
+    auto fixture = makeBothModified(QStringLiteral("gbk.txt"), GbkFixture::base(),
+                                    GbkFixture::ours(), GbkFixture::theirs());
+    QVERIFY(fixture);
+    // The conflict-marker file git wrote is GBK bytes + ASCII markers.
+    const QByteArray markerBytes = readFile(fixture->repository, fixture->path);
+    const TextEncoding::Decoded decoded = TextEncoding::decode(markerBytes);
+    QVERIFY(decoded.ok);
+    QCOMPARE(decoded.kind, TextEncoding::Kind::Gb18030);
+    const ConflictMarkerParseResult parsed = ConflictMarkerParser::parse(decoded.text);
+    QVERIFY(parsed.isValid());
+    QCOMPARE(parsed.hunks.size(), 1);
+    const QString sides = parsed.hunks.first().ours + parsed.hunks.first().theirs;
+    QVERIFY(sides.contains(QStringLiteral("我们的修改")));
+    QVERIFY(sides.contains(QStringLiteral("他们的修改")));
+
+    GitConflictService reader;
+    const auto snapshot = scan(fixture->repository, &reader);
+    QCOMPARE(snapshot.conflictCount, 1);
+    GitConflictResolutionService service;
+    service.setWorkingDirectory(fixture->repository);
+    const auto result = apply(&service, planFor(fixture->repository, snapshot.files.first(),
+                                                 service.repositoryGeneration(),
+                                                 QStringLiteral("合并结果：保留双方\n第二行\n")));
+    QVERIFY2(result.success(), qPrintable(result.message));
+    // Written back as GBK with the original CRLF line endings.
+    QCOMPARE(readFile(fixture->repository, fixture->path), GbkFixture::resolved());
+    QCOMPARE(unmergedIndexEntryCount(fixture->repository, fixture->path), 0);
+}
+
+void TestConflictResolutionService::undecodableEncodingIsRefusedWithoutWriting() {
+    auto fixture = makeBothModified(QStringLiteral("bad.txt"), QByteArray("b\xFF\xFF\n"),
+                                    QByteArray("o\xFF\xFF\n"), QByteArray("t\xFF\xFF\n"));
+    QVERIFY(fixture);
+    GitConflictService reader;
+    const auto snapshot = scan(fixture->repository, &reader);
+    QCOMPARE(snapshot.conflictCount, 1);
+    const QByteArray before = readFile(fixture->repository, fixture->path);
+    GitConflictResolutionService service;
+    service.setWorkingDirectory(fixture->repository);
+    const auto result = apply(&service, planFor(fixture->repository, snapshot.files.first(),
+                                                 service.repositoryGeneration(),
+                                                 QStringLiteral("x\n")));
+    QCOMPARE(result.error, ConflictApplyError::UnsupportedEncoding);
+    QCOMPARE(readFile(fixture->repository, fixture->path), before);
+    QCOMPARE(unmergedIndexEntryCount(fixture->repository, fixture->path), 3);
 }
 
 void TestConflictResolutionService::externalConflictChangeIsRefused() {

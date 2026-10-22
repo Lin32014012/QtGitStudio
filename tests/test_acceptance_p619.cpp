@@ -18,7 +18,9 @@
 #include "GitTagService.h"
 #include "GitRemoteService.h"
 #include "GitHubAccountService.h"
+#ifdef Q_OS_WIN
 #include "CredentialStoreWin.h"
+#endif
 #include "MainWindow.h"
 #include "test_settings_isolation.h"
 
@@ -43,6 +45,7 @@ static bool waitLoop(QEventLoop &loop, int ms = 15000) {
     return true;
 }
 
+#ifdef Q_OS_WIN
     // v4-P6-21R5 P1-05: deterministic fallback chain via injected fake
     // Win32 API - no real Windows credential is touched.
     class FakeCredentialApi : public ICredentialApi {
@@ -62,6 +65,8 @@ static bool waitLoop(QEventLoop &loop, int ms = 15000) {
         bool remove(const wchar_t *, int, unsigned long) override { return true; }
         unsigned long lastError() const override { return err; }
     };
+
+#endif // Q_OS_WIN
 
 class TestAcceptanceP619 : public QObject {
     Q_OBJECT
@@ -176,6 +181,9 @@ private slots:
     // v4-P6-21R1: uses an ISOLATED target namespace with a unique
     // suffix - never the production QtGitStudio/GitHubToken.
     void credentialFallbackEnterpriseFailsLocalMachineSucceeds() {
+#ifndef Q_OS_WIN
+        QSKIP("Windows Credential Manager is only available on Windows");
+#else
         FakeCredentialApi api;
         api.attempts = {{false, 1312}, {true, 0}};  // ENTERPRISE fails, LM ok
         CredentialStoreWin store(
@@ -185,9 +193,13 @@ private slots:
         QVERIFY(store.save(QStringLiteral("u"), QStringLiteral("t")));
         QCOMPARE(store.lastPersistMode(),
                  CredentialStoreWin::PersistMode::LocalMachine);
+#endif
     }
 
     void credentialFallbackUnknownErrorStopsImmediately() {
+#ifndef Q_OS_WIN
+        QSKIP("Windows Credential Manager is only available on Windows");
+#else
         FakeCredentialApi api;
         api.attempts = {{false, 5}, {true, 0}, {true, 0}};  // 5 = access denied
         CredentialStoreWin store(
@@ -200,9 +212,13 @@ private slots:
         QCOMPARE(api.attempts.size(), 2);
         QCOMPARE(store.lastPersistMode(),
                  CredentialStoreWin::PersistMode::None);
+#endif
     }
 
     void credentialFallbackSessionChain() {
+#ifndef Q_OS_WIN
+        QSKIP("Windows Credential Manager is only available on Windows");
+#else
         FakeCredentialApi api;
         api.attempts = {{false, 1312}, {false, 1312}, {true, 0}};
         CredentialStoreWin store(
@@ -212,9 +228,13 @@ private slots:
         QVERIFY(store.save(QStringLiteral("u"), QStringLiteral("t")));
         QCOMPARE(store.lastPersistMode(),
                  CredentialStoreWin::PersistMode::Session);
+#endif
     }
 
     void credentialStoreWinRoundTrip() {
+#ifndef Q_OS_WIN
+        QSKIP("Windows Credential Manager is only available on Windows");
+#else
         const QString testTarget =
             QStringLiteral("QtGitStudio/Test/GitHubToken/")
             + QUuid::createUuid().toString().left(8);
@@ -230,6 +250,7 @@ private slots:
         QString u2;
         QString t2;
         QVERIFY(!store.read(&u2, &t2));  // gone after remove
+#endif
     }
 
     // P1-3: refresh ten times on a normal repo - every round reports a
