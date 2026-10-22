@@ -42,6 +42,10 @@ bool isValidUtf8(const QByteArray &bytes);
 // True when a GB18030 codec is available in this build/runtime.
 bool isGb18030Available();
 
+// Which GB18030 backend is in use: "QStringConverter", "Win32 CP54936"
+// or "none" (diagnostics / tests).
+QString gb18030Backend();
+
 // Detect the encoding of bytes and decode them.
 Decoded decode(const QByteArray &bytes);
 

@@ -11,6 +11,10 @@ using TextEncoding::Kind;
 class TestTextEncoding : public QObject {
     Q_OBJECT
 private slots:
+    void initTestCase() {
+        qInfo().noquote() << "GB18030 backend:" << TextEncoding::gb18030Backend();
+    }
+
     void asciiIsUtf8() {
         const auto d = TextEncoding::decode("hello\n");
         QVERIFY(d.ok);

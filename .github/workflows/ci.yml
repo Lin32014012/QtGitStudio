@@ -47,6 +47,9 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 600 -j 2 -LE perf
 
+      - name: Encoding tests (verbose, shows GB18030 backend / skips)
+        run: ctest --test-dir build -R "test_text_encoding|test_conflict_resolution_service" -V
+
       - name: Commit graph benchmark
         env:
           QGS_PERF_OUTPUT: ${{ runner.temp }}/perf.md
@@ -95,3 +98,6 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 600 -LE perf
+
+      - name: Encoding tests (verbose, shows GB18030 backend / skips)
+        run: ctest --test-dir build -R "test_text_encoding|test_conflict_resolution_service" -V

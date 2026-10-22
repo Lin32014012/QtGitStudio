@@ -116,6 +116,18 @@ bool isGb18030Available() {
 #endif
 }
 
+QString gb18030Backend() {
+    if (qtGb18030Available()) {
+        return QStringLiteral("QStringConverter");
+    }
+#ifdef Q_OS_WIN
+    if (IsValidCodePage(kGb18030CodePage)) {
+        return QStringLiteral("Win32 CP54936");
+    }
+#endif
+    return QStringLiteral("none");
+}
+
 Decoded decode(const QByteArray &bytes) {
     Decoded result;
     if (bytes.startsWith("\xEF\xBB\xBF")) {
