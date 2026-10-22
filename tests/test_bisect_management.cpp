@@ -241,6 +241,24 @@ private slots:
         QCOMPARE(result.suggestedCommit, firstBad);
     }
 
+    // git <= 2.54: "# first bad commit: [...]"; git >= 2.55 quotes the
+    // term: "# first 'bad' commit: [...]" (custom terms too).
+    void parseBisectLogAcceptsQuotedAndUnquotedTerms() {
+        const QString hash = QString(40, QLatin1Char('a'));
+        for (const QString &line : {
+                 QStringLiteral("# first bad commit: [%1] subject"),
+                 QStringLiteral("# first 'bad' commit: [%1] subject"),
+                 QStringLiteral("# first 'broken' commit: [%1] subject")}) {
+            QString good, bad, firstBad;
+            GitBisectService::parseBisectLog(
+                ("# good: [" + QString(40, QLatin1Char('b')) + "] g\n"
+                 + line.arg(hash) + "\n").toUtf8(),
+                &good, &bad, &firstBad);
+            QCOMPARE(firstBad, hash);
+            QCOMPARE(good, QString(40, QLatin1Char('b')));
+        }
+    }
+
     void resetBisect() {
         const QString repo = mkRepo("bs_reset");
         for (int i = 1; i <= 6; ++i) {

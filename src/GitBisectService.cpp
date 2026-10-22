@@ -2,9 +2,25 @@
 #include "GitCommandExecutor.h"
 
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QDir>
 
 namespace {
+// git <= 2.54 prints "first bad commit"; git >= 2.55 quotes the (possibly
+// custom) bisect term: "first 'bad' commit". Match the shape, not the
+// spelling, so old/new or --term-new=broken sessions are recognised too.
+const QRegularExpression &firstBadLogLineRe() {
+    static const QRegularExpression re(
+        QStringLiteral("^# first '?[^\\s']+'? commit:"),
+        QRegularExpression::MultilineOption);
+    return re;
+}
+const QRegularExpression &firstBadOutputRe() {
+    static const QRegularExpression re(
+        QStringLiteral("is the first '?[^\\s']+'? commit"));
+    return re;
+}
+
 // `git rev-parse --git-path` prints paths relative to the working
 // directory; resolve them against it before checking existence.
 bool gitPathExists(const QString &path, const QString &workingDir) {
@@ -64,7 +80,7 @@ void GitBisectService::parseBisectLog(const QByteArray &logOutput,
             if (badHash) {
                 *badHash = extractHashFromLine(line);
             }
-        } else if (line.startsWith(QStringLiteral("# first bad commit:"))) {
+        } else if (firstBadLogLineRe().match(line).hasMatch()) {
             if (firstBadHash) {
                 *firstBadHash = extractHashFromLine(line);
             }
@@ -76,8 +92,8 @@ void GitBisectService::classify(const QString &combined, int exitCode,
                                 BisectCompletion completion) {
     BisectResult out;
     out.message = combined.trimmed();
-    if (combined.contains(QStringLiteral("is the first bad commit"))
-        || combined.contains(QStringLiteral("# first bad commit"))) {
+    if (firstBadOutputRe().match(combined).hasMatch()
+        || firstBadLogLineRe().match(combined).hasMatch()) {
         out.outcome = BisectOutcome::Found;
         QString good, bad, firstBad;
         // The first bad hash may come from the log excerpt in the output.
