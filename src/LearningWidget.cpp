@@ -1,0 +1,593 @@
+// v4-P6-5 Learning Mode MVP implementation. Embedded teaching content
+// only - desktop style (tree + rich text), no network/account.
+#include "LearningWidget.h"
+
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QTextBrowser>
+#include <QHeaderView>
+#include <QSplitter>
+#include <QVBoxLayout>
+#include <QMap>
+#include <QFont>
+
+namespace {
+// Shared document head/tail keeps every topic desktop-styled.
+QString doc(const QString &body) {
+    return QStringLiteral(
+               "<html><body style='font-family:\"Microsoft YaHei UI\","
+               "sans-serif; font-size:13px; color:#1F2937;'>%1</body></html>")
+        .arg(body);
+}
+
+QString h2(const QString &text) {
+    return QStringLiteral("<h2 style='color:#1E40AF; margin:6px 0;'>%1</h2>")
+        .arg(text);
+}
+
+QString p(const QString &text) {
+    return QStringLiteral("<p style='margin:6px 0; line-height:1.6;'>%1</p>")
+        .arg(text);
+}
+
+QString code(const QString &text) {
+    return QStringLiteral("<code style='background:#F3F4F6; padding:1px 5px;"
+                          " border-radius:4px; color:#B45309;'>%1</code>")
+        .arg(text);
+}
+
+QString li(const QString &text) {
+    return QStringLiteral("<li style='margin:3px 0;'>%1</li>").arg(text);
+}
+
+QString ul(const QString &items) {
+    return QStringLiteral("<ul style='margin:4px 0 8px 18px;'>%1</ul>")
+        .arg(items);
+}
+
+QString tip(const QString &text) {
+    return QStringLiteral(
+               "<p style='background:#F0FDF4; border-left:4px solid #16A34A;"
+               " padding:8px 10px; border-radius:4px; color:#14532D;'>"
+               " %1</p>")
+        .arg(text);
+}
+
+QList<LearningTopic> buildTopics() {
+    QList<LearningTopic> topics;
+    topics.append({QStringLiteral("git-what-is"),
+                   QStringLiteral("Git是什么"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Git是什么</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>Git 是一个分布式版本控制系统，记录文件的每次变化（提交），可随时回看历史、对比差异、回到任意版本，并支持多人协作。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>任何需要管理代码历史、多人协作、回滚错误的场景。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 是 Git 的图形化前端：首页打开仓库后，左侧分支、中部提交图谱、右侧文件变化就是 Git 的核心视图。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开或初始化一个 Git 仓库</li><li style='margin:3px 0;'>修改文件</li><li style='margin:3px 0;'>暂存并提交</li><li style='margin:3px 0;'>查看提交图谱中的历史</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 每个仓库都有完整历史副本，离线也可提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 误操作可通过提交历史找回，但未提交的修改可能丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("repository"),
+                   QStringLiteral("Repository 仓库"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Repository 仓库</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>仓库是 Git 保存项目与全部历史的地方，根目录下有隐藏的 .git 文件夹存放提交、分支、配置等元数据。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>开始用 Git 管理一个项目时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页的三个入口对应三种仓库来源：打开项目（已有仓库）、初始化仓库（新建）、克隆仓库（远程复制）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>初始化：把文件夹变成仓库</li><li style='margin:3px 0;'>克隆：从远程复制</li><li style='margin:3px 0;'>打开：访问已有仓库</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> .git 文件夹被删除后历史将无法恢复。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不要把 .git 放进云同步盘（OneDrive 等），容易损坏。</p></body></html>"))});
+    topics.append({QStringLiteral("worktree"),
+                   QStringLiteral("工作区 Worktree"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>工作区 Worktree</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>工作区是你正在编辑的文件实际所在的目录，与 Git 记录的版本相对照。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>每次修改文件时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 的「文件变化」列表展示工作区相对上次提交的差异。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>修改工作区中的文件</li><li style='margin:3px 0;'>在文件变化面板查看差异</li><li style='margin:3px 0;'>暂存或提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 工作区文件是你自己的副本，提交后 Git 才记录。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 强制 checkout 会覆盖工作区未提交修改。</p></body></html>"))});
+    topics.append({QStringLiteral("index"),
+                   QStringLiteral("暂存区 Index"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>暂存区 Index</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>暂存区（Index/Staging）是工作区与提交之间的中间地带：已选中、等待提交的变更。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>想精确控制一次提交包含哪些文件时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板中「暂存所选」把文件加入暂存区，「取消暂存」移出。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>修改文件</li><li style='margin:3px 0;'>暂存想要的变更</li><li style='margin:3px 0;'>提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 可以只暂存部分文件，实现小步提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 暂存区内容在提交前可随时调整。</p></body></html>"))});
+    topics.append({QStringLiteral("head"),
+                   QStringLiteral("HEAD"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>HEAD</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>HEAD 是指向当前检出提交/分支的指针，代表你正在看的位置。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>想知道当前处于哪个提交/分支时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>提交图谱中红色 HEAD 标签；顶部「当前分支」标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看 HEAD 指向的分支</li><li style='margin:3px 0;'>切换分支后 HEAD 跟随移动</li><li style='margin:3px 0;'>Detached HEAD 时 HEAD 指向具体提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> HEAD 通常指向分支，分支指向提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Detached HEAD 下新提交可能丢失（需建分支保存）。</p></body></html>"))});
+    topics.append({QStringLiteral("commit"),
+                   QStringLiteral("Commit 提交"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Commit 提交</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>提交是一次带说明的历史快照，包含作者、时间、父提交和完整差异。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>完成一个逻辑单元后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板：暂存后填写提交说明，点「提交」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>暂存变更</li><li style='margin:3px 0;'>写清楚提交说明</li><li style='margin:3px 0;'>执行提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 好的提交说明描述为什么，而不是照抄内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 提交后修改需要 amend 或新提交。</p></body></html>"))});
+    topics.append({QStringLiteral("branch"),
+                   QStringLiteral("Branch 分支"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Branch 分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>分支是独立的开发线，本质是指向提交的可移动指针。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>并行开发、实验新功能、隔离风险时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>左侧「分支列表」+「创建分支/切换分支」按钮；分支右键菜单可删除。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>创建分支</li><li style='margin:3px 0;'>切换分支</li><li style='margin:3px 0;'>合并或删除</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 创建分支几乎零成本。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 删除分支会丢失其独有的未合并提交。</p></body></html>"))});
+    topics.append({QStringLiteral("tag"),
+                   QStringLiteral("Tag 标签"),
+                   QStringLiteral("Git基础"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Tag 标签</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>标签是给特定提交打上的固定名字（如 v1.0.0），指向后不移动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>发布版本、标记里程碑时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「标签管理」窗口：创建/查看/删除标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择目标提交</li><li style='margin:3px 0;'>创建标签（轻量或附注）</li><li style='margin:3px 0;'>在提交图谱中查看</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 附注标签带作者和时间，适合发布。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 标签不像分支会跟随新提交移动。</p></body></html>"))});
+    topics.append({QStringLiteral("open-repo"),
+                   QStringLiteral("打开本地仓库"),
+                   QStringLiteral("仓库操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>打开本地仓库</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>打开本机已有的 Git 仓库进入工作界面。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>继续之前的工作时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页「打开项目」操作块，或顶部「更换项目」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点击打开项目</li><li style='margin:3px 0;'>选择含 .git 的目录</li><li style='margin:3px 0;'>进入仓库工作界面</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 会自动加入最近项目列表。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 选择非仓库目录会提示不是 Git 项目。</p></body></html>"))});
+    topics.append({QStringLiteral("init-repo"),
+                   QStringLiteral("初始化仓库"),
+                   QStringLiteral("仓库操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>初始化仓库</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把普通文件夹变成 Git 仓库（生成 .git）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>新项目开始使用 Git 时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页「初始化仓库」操作块。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择目标文件夹</li><li style='margin:3px 0;'>确认初始化</li><li style='margin:3px 0;'>开始提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 初始化后首次提交前无历史。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 在已有仓库上重复初始化会提示。</p></body></html>"))});
+    topics.append({QStringLiteral("clone-repo"),
+                   QStringLiteral("Clone 克隆仓库"),
+                   QStringLiteral("仓库操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Clone 克隆仓库</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>从远程仓库复制完整副本（含全部历史）到本地。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>参与已有项目、从 GitHub 拉取代码时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页「克隆仓库」操作块（支持本地路径与 GitHub 仓库）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>获取远程地址</li><li style='margin:3px 0;'>选择本地目标目录</li><li style='margin:3px 0;'>执行克隆</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 克隆自带 origin 远程配置。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 大仓库克隆耗时较长。</p></body></html>"))});
+    topics.append({QStringLiteral("empty-unborn"),
+                   QStringLiteral("空仓库 / Unborn Branch"),
+                   QStringLiteral("仓库操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>空仓库 / Unborn Branch</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>没有提交的仓库处于 unborn 状态，HEAD 指向尚不存在的分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>刚初始化仓库、还没有第一次提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 提交图谱显示空状态提示，指导完成首次提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>初始化仓库</li><li style='margin:3px 0;'>添加文件并暂存</li><li style='margin:3px 0;'>首次提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 首次提交后 unborn 状态结束。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 空仓库没有可回退的历史。</p></body></html>"))});
+    topics.append({QStringLiteral("env-detect"),
+                   QStringLiteral("Git 环境检测"),
+                   QStringLiteral("仓库操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Git 环境检测</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 启动时检测 git 可执行文件是否可用。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>启动应用、或 Git 安装/更新后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页左下「Git 环境」按钮查看检测结果与安装指引。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开 Git 环境面板</li><li style='margin:3px 0;'>查看 git 版本</li><li style='margin:3px 0;'>缺失时按指引安装</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 需要 git 在 PATH 中。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Git 缺失时大部分功能不可用。</p></body></html>"))});
+    topics.append({QStringLiteral("file-changes"),
+                   QStringLiteral("查看文件变化"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>查看文件变化</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板列出工作区与暂存区相对 HEAD 的差异文件（新增/修改/删除）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>每次准备提交前检查改了什么。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>仓库工作界面右侧「文件变化」区，随刷新自动更新。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>修改文件</li><li style='margin:3px 0;'>点刷新状态</li><li style='margin:3px 0;'>查看变化列表</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 未跟踪的新文件也会列出。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 列表为空表示工作区干净。</p></body></html>"))});
+    topics.append({QStringLiteral("diff"),
+                   QStringLiteral("Diff"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Diff</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>Diff 展示文件的具体改动（增删行）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>提交前确认改动内容、审查他人代码时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板选中文件后查看；提交图谱选中提交可查看该提交的 diff。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中变化文件</li><li style='margin:3px 0;'>查看逐行差异</li><li style='margin:3px 0;'>确认改动符合预期</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 绿色为新增行，红色为删除行。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 大文件 diff 可能较长。</p></body></html>"))});
+    topics.append({QStringLiteral("stage"),
+                   QStringLiteral("Stage 暂存"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stage 暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把文件从工作区加入暂存区，纳入下一次提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>准备提交某个文件时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板「暂存所选」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中文件</li><li style='margin:3px 0;'>点击暂存</li><li style='margin:3px 0;'>文件移入暂存区</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 可以只暂存部分文件。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 暂存后修改文件需重新暂存。</p></body></html>"))});
+    topics.append({QStringLiteral("unstage"),
+                   QStringLiteral("Unstage 取消暂存"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Unstage 取消暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把文件从暂存区移回工作区，不纳入下一次提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>误暂存、或想重新组织提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板「取消暂存」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中已暂存文件</li><li style='margin:3px 0;'>点击取消暂存</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 不会修改文件内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 暂存状态只是标记，可随意调整。</p></body></html>"))});
+    topics.append({QStringLiteral("stage-all"),
+                   QStringLiteral("Stage All 暂存全部"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stage All 暂存全部</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>一次性把所有变化文件加入暂存区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>改动简单、想全部提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板「暂存全部」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认所有改动</li><li style='margin:3px 0;'>点击暂存全部</li><li style='margin:3px 0;'>填写说明并提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 适合小改动批量提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 会包含不想提交的文件，提交前仔细确认。</p></body></html>"))});
+    topics.append({QStringLiteral("commit-op"),
+                   QStringLiteral("Commit 提交"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Commit 提交</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把暂存区内容固化为一次历史提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>完成一个逻辑单元后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板底部：填提交说明 → 点「提交」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>暂存文件</li><li style='margin:3px 0;'>填写提交说明</li><li style='margin:3px 0;'>点击提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 说明应描述为什么。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 提交前确认暂存内容正确。</p></body></html>"))});
+    topics.append({QStringLiteral("commit-message"),
+                   QStringLiteral("Commit Message 提交说明"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Commit Message 提交说明</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>提交说明是对变更的简洁描述，是团队协作的重要沟通载体。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>每次提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板的提交说明输入框。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>一句话概括变更</li><li style='margin:3px 0;'>必要时补充细节</li><li style='margin:3px 0;'>提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 参考格式：fix: 修复xx问题 / feat: 新增xx功能。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 模糊的说明会让历史难以检索。</p></body></html>"))});
+    topics.append({QStringLiteral("clean-worktree"),
+                   QStringLiteral("工作区干净状态"),
+                   QStringLiteral("文件与提交"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>工作区干净状态</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>工作区与 HEAD 一致、无未提交修改的状态。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>切换分支、合并、rebase 前应确保工作区干净。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化列表为空 + 顶部 Git 状态显示正常。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>检查文件变化为空</li><li style='margin:3px 0;'>有改动时先提交或暂存</li><li style='margin:3px 0;'>再执行分支操作</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 大多数 Git 操作要求干净工作区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 脏工作区会导致切换分支被拒绝或冲突。</p></body></html>"))});
+    topics.append({QStringLiteral("view-branch"),
+                   QStringLiteral("查看分支"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>查看分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>分支列表展示本地/远程分支及当前分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>了解仓库结构、确认当前分支时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>左侧「分支列表」树（本地/远程分组）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>刷新状态</li><li style='margin:3px 0;'>查看分支树</li><li style='margin:3px 0;'>右键分支操作</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 当前分支高亮显示。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 远程分支带 origin/ 前缀。</p></body></html>"))});
+    topics.append({QStringLiteral("create-branch"),
+                   QStringLiteral("创建分支"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>创建分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>从当前提交创建新的分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>开始新功能、实验时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「创建分支」按钮弹出对话框，输入名称。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点击创建分支</li><li style='margin:3px 0;'>输入分支名</li><li style='margin:3px 0;'>确认创建</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 新分支从当前 HEAD 出发。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 分支名避免特殊字符和空格。</p></body></html>"))});
+    topics.append({QStringLiteral("switch-branch"),
+                   QStringLiteral("切换分支"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>切换分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>切换到另一个分支继续工作。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>在不同任务线之间切换时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支列表选中目标分支 → 「切换分支」；或右键切换。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中目标分支</li><li style='margin:3px 0;'>点击切换</li><li style='margin:3px 0;'>确认工作区干净</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 切换后 HEAD 跟随移动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 未提交修改会被携带或阻止切换（视冲突而定）。</p></body></html>"))});
+    topics.append({QStringLiteral("delete-branch"),
+                   QStringLiteral("删除分支"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>删除分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>删除不再需要的分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>功能已合并、分支清理时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支右键菜单「删除」；Git 会拒绝删除未合并分支（可强制）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认分支已合并</li><li style='margin:3px 0;'>右键删除</li><li style='margin:3px 0;'>必要时强制删除</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 已合并分支删除安全。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 未合并分支删除会丢失提交（可用 reflog 找回）。</p></body></html>"))});
+    topics.append({QStringLiteral("detached-head"),
+                   QStringLiteral("Detached HEAD"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Detached HEAD</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>HEAD 直接指向提交而非分支的状态。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>直接检出历史提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>提交图谱中 HEAD 标签无分支名。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>检出历史提交</li><li style='margin:3px 0;'>需要保存时创建新分支</li><li style='margin:3px 0;'>或切换回原分支</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 此时新提交不属于任何分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不建分支直接离开，新提交可能丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("merge"),
+                   QStringLiteral("Merge 合并"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Merge 合并</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把另一分支的变更合并进当前分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>功能分支完成后合入主线时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支右键「合并到当前分支」或选中后点合并。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>切换到目标分支</li><li style='margin:3px 0;'>选择来源分支</li><li style='margin:3px 0;'>执行合并</li><li style='margin:3px 0;'>处理可能冲突</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 自动合并成功会生成合并提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 冲突需手动解决。</p></body></html>"))});
+    topics.append({QStringLiteral("merge-conflict"),
+                   QStringLiteral("Merge Conflict 合并冲突"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Merge Conflict 合并冲突</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>两处修改同一位置时 Git 无法自动合并，需要人工决定保留内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>合并/rebase 时 Git 提示冲突。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突文件在文件变化面板标出，Diff 查看器显示冲突标记。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看冲突文件</li><li style='margin:3px 0;'>编辑保留正确内容</li><li style='margin:3px 0;'>暂存解决的文件</li><li style='margin:3px 0;'>完成提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 冲突标记 <<<<<<< ======= >>>>>>> 包围两侧内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不要盲目覆盖，理解两侧意图再决定。</p></body></html>"))});
+    topics.append({QStringLiteral("merge-abort"),
+                   QStringLiteral("Merge Abort 放弃合并"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Merge Abort 放弃合并</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>取消进行中的合并，恢复到合并前状态。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>合并冲突太多、想从头再来时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突提示时选择「放弃合并」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认放弃</li><li style='margin:3px 0;'>工作区恢复原状</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 放弃后无合并痕迹。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 放弃会丢失已解决的冲突编辑。</p></body></html>"))});
+    topics.append({QStringLiteral("cherry-pick"),
+                   QStringLiteral("Cherry-pick"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Cherry-pick</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把指定提交的变更复制到当前分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>只想拿某个分支的特定提交，而不合并整个分支时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>提交图谱节点右键 →「Cherry-pick 到当前分支」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择目标提交</li><li style='margin:3px 0;'>右键 Cherry-pick</li><li style='margin:3px 0;'>处理可能冲突</li><li style='margin:3px 0;'>提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 原提交保持不变，当前分支新增一份相同变更。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 重复 cherry-pick 同一提交可能产生冲突。</p></body></html>"))});
+    topics.append({QStringLiteral("cherry-pick-conflict"),
+                   QStringLiteral("Cherry-pick Conflict"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Cherry-pick Conflict</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>cherry-pick 的变更与当前分支内容冲突。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>目标提交修改了当前分支也修改过的区域时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突文件在文件变化面板显示，按冲突处理流程解决。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看冲突文件</li><li style='margin:3px 0;'>解决冲突</li><li style='margin:3px 0;'>暂存后继续</li><li style='margin:3px 0;'>完成提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 解决方式与合并冲突相同。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 冲突未解决前不要切换分支。</p></body></html>"))});
+    topics.append({QStringLiteral("cherry-pick-abort"),
+                   QStringLiteral("Cherry-pick Abort"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Cherry-pick Abort</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>取消进行中的 cherry-pick。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>决定放弃该提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突提示时选择放弃。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认放弃</li><li style='margin:3px 0;'>恢复到 cherry-pick 前状态</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 放弃后无残留。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 已解决的编辑会丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("rebase"),
+                   QStringLiteral("Rebase 变基"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Rebase 变基</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把当前分支独有的提交重新应用到目标分支最新提交之后，历史呈线性。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>保持历史整洁、同步上游更新时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支右键 →「将当前分支 Rebase 到此分支」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确保工作区干净</li><li style='margin:3px 0;'>选择目标分支</li><li style='margin:3px 0;'>确认基线</li><li style='margin:3px 0;'>处理冲突</li><li style='margin:3px 0;'>Continue 或 Abort</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> Rebase 会生成新的 Commit Hash。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 已推送到共享远程的分支不宜 rebase，会破坏他人历史。</p></body></html>"))});
+    topics.append({QStringLiteral("rebase-continue"),
+                   QStringLiteral("Rebase Continue"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Rebase Continue</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>解决冲突后继续被中断的 rebase。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>rebase 冲突解决完成后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突解决并暂存后点「继续 Rebase」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>解决冲突</li><li style='margin:3px 0;'>暂存文件</li><li style='margin:3px 0;'>继续 Rebase</li><li style='margin:3px 0;'>重复直至完成</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 每次解决后 Git 继续下一个提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 未暂存的修改会被视为未解决。</p></body></html>"))});
+    topics.append({QStringLiteral("rebase-abort"),
+                   QStringLiteral("Rebase Abort"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Rebase Abort</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>放弃整个 rebase，回到开始前状态。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>rebase 过程复杂、想恢复原状时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「放弃 Rebase」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认放弃</li><li style='margin:3px 0;'>工作区恢复 rebase 前状态</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 放弃后原分支提交完整保留。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 放弃前已手动解决的编辑丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("rebase-rewrites"),
+                   QStringLiteral("Rebase 会重写 Hash"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Rebase 会重写 Hash</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>rebase 后提交的哈希全部改变，因为提交内容（父提交）变了。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>理解为何 rebase 后哈希不同、为何共享分支不宜 rebase 时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>提交图谱对比 rebase 前后哈希变化。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>Rebase 前记录原哈希</li><li style='margin:3px 0;'>Rebase 后对比</li><li style='margin:3px 0;'>确认内容等价</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 哈希变化不意味着内容变化。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 依赖旧哈希的文档/工具需要更新。</p></body></html>"))});
+    topics.append({QStringLiteral("bisect"),
+                   QStringLiteral("Bisect 二分查找"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Bisect 二分查找</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>用二分法定位引入问题的提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>功能在某时间段内被破坏、不知道哪个提交导致时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「二分查找」窗口（Git 工作流菜单）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>开始 Bisect：指定坏/好提交</li><li style='margin:3px 0;'>按实际测试标记</li><li style='margin:3px 0;'>定位首个坏提交</li><li style='margin:3px 0;'>重置</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 每次标记使范围减半。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 需要能判断每个版本的优劣。</p></body></html>"))});
+    topics.append({QStringLiteral("bisect-good"),
+                   QStringLiteral("Bisect Good"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Bisect Good</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>标记当前提交为正常。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>二分过程中测试当前提交正常时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>二分查找窗口点「Good提交」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>测试当前提交</li><li style='margin:3px 0;'>正常则标记 Good</li><li style='margin:3px 0;'>Git 缩小范围</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 标记后 Git 只检查更晚的提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 误标会误导定位结果。</p></body></html>"))});
+    topics.append({QStringLiteral("bisect-bad"),
+                   QStringLiteral("Bisect Bad"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Bisect Bad</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>标记当前提交为有问题的。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>二分过程中测试当前提交有问题时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>二分查找窗口点「Bad提交」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>测试当前提交</li><li style='margin:3px 0;'>有问题则标记 Bad</li><li style='margin:3px 0;'>Git 缩小范围</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 首个 Bad 提交即问题引入点。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 误标会导致错误结论。</p></body></html>"))});
+    topics.append({QStringLiteral("bisect-reset"),
+                   QStringLiteral("Bisect Reset"),
+                   QStringLiteral("高级历史操作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Bisect Reset</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>结束 bisect 会话，恢复正常分支状态。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>定位完成后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>二分查找窗口「重置二分查找」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点击重置</li><li style='margin:3px 0;'>HEAD 回到原分支</li><li style='margin:3px 0;'>工作区恢复</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 结束后务必重置。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 忘记重置会停留在 bisect 状态。</p></body></html>"))});
+    topics.append({QStringLiteral("stash"),
+                   QStringLiteral("Stash 暂存"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stash 暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把未提交改动临时收起，工作区恢复干净。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>需要切换分支处理急事、手头工作未完成时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「Stash 管理」窗口（Git 工作流菜单）：填写说明创建。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>创建 Stash</li><li style='margin:3px 0;'>工作区变干净</li><li style='margin:3px 0;'>处理其他事情</li><li style='margin:3px 0;'>恢复 Stash</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> Stash 与提交独立保存。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 长期不恢复的 Stash 容易遗忘。</p></body></html>"))});
+    topics.append({QStringLiteral("stash-apply"),
+                   QStringLiteral("Stash Apply 应用暂存"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stash Apply 应用暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>恢复 Stash 的改动但保留 Stash 记录。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>想恢复改动、同时保留备份时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Stash 管理窗口选中条目 →「应用暂存」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中 Stash</li><li style='margin:3px 0;'>应用</li><li style='margin:3px 0;'>检查改动</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 可多次应用同一 Stash。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 与当前工作区冲突时需解决。</p></body></html>"))});
+    topics.append({QStringLiteral("stash-pop"),
+                   QStringLiteral("Stash Pop 恢复暂存"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stash Pop 恢复暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>恢复 Stash 的改动并删除该 Stash 记录。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>恢复后不再需要备份时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Stash 管理窗口选中条目 →「恢复暂存」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中 Stash</li><li style='margin:3px 0;'>恢复</li><li style='margin:3px 0;'>确认改动正确</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 等价于 Apply + Drop。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 冲突时记录保留，不会丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("stash-drop"),
+                   QStringLiteral("Stash Drop 删除暂存"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Stash Drop 删除暂存</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>删除 Stash 记录。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>Stash 不再需要时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Stash 管理窗口选中条目 →「删除暂存」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认不需要该 Stash</li><li style='margin:3px 0;'>删除</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 删除后不可恢复。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 先确认改动已提交或不需要。</p></body></html>"))});
+    topics.append({QStringLiteral("lightweight-tag"),
+                   QStringLiteral("Lightweight Tag 轻量标签"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Lightweight Tag 轻量标签</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>仅指向提交的简单标签，无额外信息。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>快速标记某个提交时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「标签管理」窗口创建。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择提交</li><li style='margin:3px 0;'>创建轻量标签</li><li style='margin:3px 0;'>命名</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 只有名字，没有作者时间。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 发布版本建议用附注标签。</p></body></html>"))});
+    topics.append({QStringLiteral("annotated-tag"),
+                   QStringLiteral("Annotated Tag 附注标签"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Annotated Tag 附注标签</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>带作者、时间、说明的完整标签对象。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>正式发布版本时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「标签管理」窗口创建（附注类型）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择提交</li><li style='margin:3px 0;'>创建附注标签</li><li style='margin:3px 0;'>填写说明</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 推荐用于发布。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 比轻量标签多一些信息。</p></body></html>"))});
+    topics.append({QStringLiteral("delete-tag"),
+                   QStringLiteral("删除 Tag"),
+                   QStringLiteral("临时工作与版本标记"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>删除 Tag</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>删除不需要的标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>标签错误或不再需要时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「标签管理」窗口选中标签删除。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中标签</li><li style='margin:3px 0;'>删除</li><li style='margin:3px 0;'>确认</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 本地删除不影响远程标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 删除已推送的远程标签需单独操作。</p></body></html>"))});
+    topics.append({QStringLiteral("remote"),
+                   QStringLiteral("Remote 远程"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Remote 远程</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>远程仓库是位于其他机器的仓库副本，通过 URL 关联。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>备份代码、协作、拉取更新时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>仓库工作界面 Remote 区域显示名称与 fetch/push URL。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看远程列表</li><li style='margin:3px 0;'>Fetch/Pull/Push</li><li style='margin:3px 0;'>克隆时自动配置 origin</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 一个仓库可配置多个远程。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 远程地址错误会导致同步失败。</p></body></html>"))});
+    topics.append({QStringLiteral("origin"),
+                   QStringLiteral("Origin"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Origin</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>origin 是克隆时自动创建的默认远程名称。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>大多数单远程项目的日常操作。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Remote 区域默认显示 origin 的 URL。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看 origin 地址</li><li style='margin:3px 0;'>使用 Fetch/Pull/Push</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 约定俗成的默认远程名。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 重命名远程后命令需用新名称。</p></body></html>"))});
+    topics.append({QStringLiteral("fetch"),
+                   QStringLiteral("Fetch"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Fetch</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>下载远程分支信息与对象，不修改工作区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>查看远程是否有新提交、对比差异时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Remote 区域「Fetch」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点击 Fetch</li><li style='margin:3px 0;'>查看远程分支更新</li><li style='margin:3px 0;'>对比本地</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 安全：不改动工作区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 只更新远程跟踪分支。</p></body></html>"))});
+    topics.append({QStringLiteral("pull"),
+                   QStringLiteral("Pull"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Pull</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>Fetch + 合并远程分支到当前分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>同步远程最新代码时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Remote 区域「Pull」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点击 Pull</li><li style='margin:3px 0;'>处理可能的合并/冲突</li><li style='margin:3px 0;'>完成</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 默认合并远程跟踪分支。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 本地未提交修改可能与 pull 冲突。</p></body></html>"))});
+    topics.append({QStringLiteral("push"),
+                   QStringLiteral("Push"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Push</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把本地提交上传到远程仓库。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>分享本地工作成果时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Remote 区域「Push」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认本地提交</li><li style='margin:3px 0;'>点击 Push</li><li style='margin:3px 0;'>验证远程状态</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 推送后他人可 fetch/pull。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 推送被拒通常是远程有新提交（先 pull）。</p></body></html>"))});
+    topics.append({QStringLiteral("remote-errors"),
+                   QStringLiteral("常见远程错误"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>常见远程错误</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>同步失败的常见原因：网络、权限、非快进推送。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>Fetch/Pull/Push 失败时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 错误提示会给出原因与建议。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>阅读错误信息</li><li style='margin:3px 0;'>网络错误检查连接</li><li style='margin:3px 0;'>权限错误检查凭据</li><li style='margin:3px 0;'>非快进先 pull</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 大部分错误有明确修复路径。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 凭据错误不会损坏本地仓库。</p></body></html>"))});
+    topics.append({QStringLiteral("credentials"),
+                   QStringLiteral("凭据与权限"),
+                   QStringLiteral("Remote 与同步"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>凭据与权限</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>访问私有远程需要身份验证（用户名/令牌）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>首次 push/pull 私有仓库时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>GitHub 功能需在「GitHub 账户」中配置令牌；普通远程用系统凭据。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>配置凭据</li><li style='margin:3px 0;'>测试 Fetch</li><li style='margin:3px 0;'>正常后 Push</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 令牌等同于密码，妥善保管。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不要把令牌提交进代码。</p></body></html>"))});
+    topics.append({QStringLiteral("read-graph"),
+                   QStringLiteral("如何阅读提交图"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>如何阅读提交图</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>提交图谱把历史画成节点+连线：节点是提交，连线是父子关系，从上到下时间递减。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>理解仓库历史脉络时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「提交图谱」窗口（Git 工作流菜单）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开提交图谱</li><li style='margin:3px 0;'>看节点与连线</li><li style='margin:3px 0;'>点击节点看详情</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 每行一个提交：圆点+短哈希+提交说明。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 分支会在不同列（lane）分叉汇合。</p></body></html>"))});
+    topics.append({QStringLiteral("parent-child"),
+                   QStringLiteral("Parent / Child"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Parent / Child</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>父提交是某提交的直接前驱；子提交是其后继。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>理解提交链时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱中节点间连线即父子关系。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>看节点连线方向</li><li style='margin:3px 0;'>查看详情中的父提交字段</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 合并提交有多个父提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 回退操作沿父链进行。</p></body></html>"))});
+    topics.append({QStringLiteral("branch-ref"),
+                   QStringLiteral("Branch Ref 分支引用"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Branch Ref 分支引用</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>图谱中蓝色标签显示指向该提交的分支名。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>确认哪个提交在哪个分支上时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱节点旁蓝色分支标签；远程分支橙色。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>看分支标签</li><li style='margin:3px 0;'>对比不同分支位置</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 分支是移动指针，标签位置随时间变化。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 标签反映最近刷新时的状态。</p></body></html>"))});
+    topics.append({QStringLiteral("tag-ref"),
+                   QStringLiteral("Tag Ref 标签引用"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Tag Ref 标签引用</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>绿色标签显示指向该提交的标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>定位发布版本时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱节点旁绿色标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>找绿色标签</li><li style='margin:3px 0;'>点击节点查看详情</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 标签不随新提交移动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 删除标签后图谱标签消失。</p></body></html>"))});
+    topics.append({QStringLiteral("head-ref"),
+                   QStringLiteral("HEAD 标记"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>HEAD 标记</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>红色 HEAD 标签标识当前检出的提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>快速定位当前所在位置时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱节点上方红色 HEAD 标签。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>找红色 HEAD</li><li style='margin:3px 0;'>确认当前提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 切换分支后 HEAD 移动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Detached HEAD 时 HEAD 标签在具体提交上。</p></body></html>"))});
+    topics.append({QStringLiteral("merge-commit"),
+                   QStringLiteral("Merge Commit 合并提交"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Merge Commit 合并提交</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>有多个父提交的提交，白芯双环节点。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>识别合并操作发生时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱中双环节点 + 详情父提交多于一个。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>识别双环节点</li><li style='margin:3px 0;'>查看其多个父提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 合并提交代表一次合并操作。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> rebase 不会产生合并提交。</p></body></html>"))});
+    topics.append({QStringLiteral("commit-diff"),
+                   QStringLiteral("Commit Diff"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Commit Diff</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>查看某提交引入的具体变更。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>审查提交内容时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>图谱选中节点 → 下方 diff 区域 + 变更文件列表。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中节点</li><li style='margin:3px 0;'>查看变更文件</li><li style='margin:3px 0;'>查看逐行 diff</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 也可右键节点查看 Diff。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 大提交 diff 较长。</p></body></html>"))});
+    topics.append({QStringLiteral("github-optional"),
+                   QStringLiteral("GitHub 账号是可选功能"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>GitHub 账号是可选功能</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>GitHub 集成（仓库列表/克隆/Release）是可选的，不配置也能使用全部本地 Git 功能。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>需要与 GitHub 交互时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页「GitHub 账户」按钮配置。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开 GitHub 账户</li><li style='margin:3px 0;'>填写令牌</li><li style='margin:3px 0;'>保存</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 本地功能完全不受影响。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 令牌缺失时 GitHub 功能提示配置。</p></body></html>"))});
+    topics.append({QStringLiteral("pat"),
+                   QStringLiteral("Personal Access Token"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Personal Access Token</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>GitHub 的访问令牌（PAT），代替密码进行 API 认证。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>配置 GitHub 账户时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>GitHub 账户对话框输入令牌。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>在 GitHub 生成 PAT</li><li style='margin:3px 0;'>粘贴到账户对话框</li><li style='margin:3px 0;'>验证连接</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 令牌只显示一次，丢失需重新生成。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 令牌泄露等于账户泄露。</p></body></html>"))});
+    topics.append({QStringLiteral("repo-list"),
+                   QStringLiteral("Repository 列表"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Repository 列表</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>查看账户可见的仓库列表。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>浏览自己的 GitHub 仓库时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>GitHub 相关窗口的仓库列表（需配置令牌）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开仓库列表</li><li style='margin:3px 0;'>查看名称与地址</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 只显示令牌有权限的仓库。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 403 表示权限不足。</p></body></html>"))});
+    topics.append({QStringLiteral("clone-github"),
+                   QStringLiteral("Clone GitHub 仓库"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Clone GitHub 仓库</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>从 GitHub 克隆仓库到本地。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>参与 GitHub 上的项目时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页克隆入口支持 GitHub 仓库地址。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>复制 GitHub 地址</li><li style='margin:3px 0;'>克隆</li><li style='margin:3px 0;'>本地打开</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 公开仓库无需令牌。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 私有仓库需要授权。</p></body></html>"))});
+    topics.append({QStringLiteral("github-release"),
+                   QStringLiteral("GitHub Release"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>GitHub Release</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>在 GitHub 上发布版本（tag + 说明 + 附件）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>给项目打正式版本时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「Release 管理」窗口（Git 工作流菜单）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择 Tag</li><li style='margin:3px 0;'>填写版本说明</li><li style='margin:3px 0;'>创建 Release</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> Release 绑定已推送的 tag。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 需要仓库的写权限。</p></body></html>"))});
+    topics.append({QStringLiteral("release-notes"),
+                   QStringLiteral("Release Notes"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Release Notes</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>自动从提交历史生成版本说明（按 feat/fix 分类）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>写版本说明时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Release 管理窗口的 Release Notes 区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选择新旧 Tag</li><li style='margin:3px 0;'>生成</li><li style='margin:3px 0;'>复制或填入发布</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 按提交前缀自动分类。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 说明质量取决于提交说明质量。</p></body></html>"))});
+    topics.append({QStringLiteral("release-assets"),
+                   QStringLiteral("Release Assets"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Release Assets</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>给 Release 上传二进制附件（如安装包）。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>发布软件安装包时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Release 管理窗口的 Release Assets 区。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中 Release</li><li style='margin:3px 0;'>选择文件上传</li><li style='margin:3px 0;'>进度完成</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 支持进度显示。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 超大文件上传受 GitHub 限制。</p></body></html>"))});
+    topics.append({QStringLiteral("what-conflict"),
+                   QStringLiteral("什么是冲突"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>什么是冲突</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>双方修改了同一处内容时，Git 无法自动合并，产生冲突。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>merge/rebase/cherry-pick/stash 恢复时提示冲突。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突文件在文件变化面板标出，可逐个查看解决。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>识别冲突文件</li><li style='margin:3px 0;'>逐个解决</li><li style='margin:3px 0;'>暂存</li><li style='margin:3px 0;'>继续操作</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 冲突不是错误，是正常协作现象。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 冲突越多说明并行改动越密集。</p></body></html>"))});
+    topics.append({QStringLiteral("conflict-markers"),
+                   QStringLiteral("冲突标记"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>冲突标记</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>冲突文件内含 <<<<<<< ======= >>>>>>> 标记，分别表示当前分支与对方内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>打开冲突文件时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>Diff 查看器与文件编辑器显示标记。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>找到 <<<<<<<</li><li style='margin:3px 0;'>看两侧内容</li><li style='margin:3px 0;'>选择保留</li><li style='margin:3px 0;'>删除标记</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 标记必须全部删除才能通过。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 遗留标记会导致文件语义错误。</p></body></html>"))});
+    topics.append({QStringLiteral("manual-resolve"),
+                   QStringLiteral("手工解决冲突"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>手工解决冲突</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>编辑冲突文件，决定保留哪部分或编写新内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>所有冲突场景。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>在编辑器中修改冲突文件。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>理解两侧意图</li><li style='margin:3px 0;'>编辑文件</li><li style='margin:3px 0;'>删除冲突标记</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 有时两侧都需要保留。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不要盲目选择一边。</p></body></html>"))});
+    topics.append({QStringLiteral("git-add-resolve"),
+                   QStringLiteral("git add 标记解决"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>git add 标记解决</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>解决后把文件加入暂存区，告诉 Git 该冲突已解决。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>每个冲突文件编辑完成后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>文件变化面板「暂存」该文件。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>编辑完成</li><li style='margin:3px 0;'>暂存文件</li><li style='margin:3px 0;'>全部解决后继续</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 未暂存的冲突文件视为未解决。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 遗漏会导致操作无法继续。</p></body></html>"))});
+    topics.append({QStringLiteral("continue-conflict"),
+                   QStringLiteral("Continue 继续"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Continue 继续</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>全部冲突解决并暂存后，继续被中断的 merge/rebase/cherry-pick。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>所有冲突解决后。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 冲突提示中的「继续」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认全部暂存</li><li style='margin:3px 0;'>点击继续</li><li style='margin:3px 0;'>完成操作</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 继续后 Git 完成剩余步骤。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 继续后操作不可半途撤销（可 abort 前）。</p></body></html>"))});
+    topics.append({QStringLiteral("abort-conflict"),
+                   QStringLiteral("Abort 放弃"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Abort 放弃</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>放弃整个冲突中的操作，回到开始前。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>冲突太多或决定不合并时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>「放弃合并/Rebase/Cherry-pick」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确认放弃</li><li style='margin:3px 0;'>状态恢复</li><li style='margin:3px 0;'>重新规划</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 放弃是干净的回退方式。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 已做的解决编辑会丢失。</p></body></html>"))});
+    topics.append({QStringLiteral("dont-overwrite"),
+                   QStringLiteral("不要盲目覆盖文件"),
+                   QStringLiteral("冲突处理"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>不要盲目覆盖文件</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>解决冲突时理解双方意图，而不是用一边覆盖另一边。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>每个冲突场景。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 的 diff 视图帮助对比两侧。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看 diff</li><li style='margin:3px 0;'>理解双方改动</li><li style='margin:3px 0;'>合理合并</li><li style='margin:3px 0;'>验证编译/运行</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 覆盖可能导致功能丢失。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 解决后建议运行测试验证。</p></body></html>"))});
+    topics.append({QStringLiteral("github-connect"),
+                   QStringLiteral("连接 GitHub 账户"),
+                   QStringLiteral("GitHub"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>连接 GitHub 账户</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>通过 Personal Access Token 登录 GitHub，启用仓库列表与 Release 功能。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>第一次使用 GitHub 相关功能时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页或仓库页「GitHub 账户」→「连接GitHub」；对话框中可直接点「打开 GitHub」前往令牌管理页。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>点「打开 GitHub」在浏览器中登录</li><li style='margin:3px 0;'>创建 Personal Access Token</li><li style='margin:3px 0;'>复制并粘贴到连接对话框</li><li style='margin:3px 0;'>点「连接」，验证通过后显示用户名</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> Token 不会明文保存到文件；用户名由 GitHub 返回，无需手输。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Token 泄露等于账户泄露，请勿提交到代码仓库。</p></body></html>"))});
+    topics.append({QStringLiteral("graph-view-tools"),
+                   QStringLiteral("图谱视图操作"),
+                   QStringLiteral("Commit Graph"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>图谱视图操作</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>调整分支关系图的显示方式：默认聚焦最近 30 条提交，避免整段历史被硬压成一条长带。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>仓库历史很长、或想快速定位近期工作时。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支列表页点「查看关系图」打开独立窗口，工具栏：查看全部 / 最近提交 / 全部分支 / 只看当前分支 / 搜索提交…。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>打开分支关系图（默认最近 30 条提交）</li><li style='margin:3px 0;'>纵向滚动阅读近期提交</li><li style='margin:3px 0;'>「查看全部」加载完整历史</li><li style='margin:3px 0;'>「最近提交」回到默认视图</li><li style='margin:3px 0;'>搜索（说明/Hash/作者）在任意视图模式下都可用</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 搜索（说明/Hash/作者）在任意视图模式下都可用。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 超大仓库「查看全部」会渲染大量节点，滚动可能变慢。</p></body></html>"))});
+    // v4-P6-18: QtGitStudio usage tutorial - remote workflow.
+    topics.append({QStringLiteral("clone-fetch-pull-push"),
+                   QStringLiteral("Clone / Fetch / Pull / Push"),
+                   QStringLiteral("远程协作"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Clone / Fetch / Pull / Push</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>与远程仓库同步：Clone 首次下载，Fetch 拉取远端引用，Pull 拉取并合并，Push 上传本地提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>首页「克隆仓库」；仓库页顶部「Fetch」「Pull」「Push」按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>克隆：首页 → 克隆仓库 → 填 URL 与目标目录</li><li style='margin:3px 0;'>Fetch：点「Fetch」只更新远端引用</li><li style='margin:3px 0;'>Pull：点「Pull」拉取并合并到当前分支</li><li style='margin:3px 0;'>Push：提交本地改动后点「Push」上传</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 操作期间按钮进入忙碌状态，完成后恢复。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Push 前先 Pull，避免远端领先导致拒绝。</p></body></html>"))});
+    topics.append({QStringLiteral("branch-create-delete"),
+                   QStringLiteral("创建 / 删除分支"),
+                   QStringLiteral("分支"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>创建 / 删除分支</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>分支是轻量指针，用于并行开发互不干扰。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支列表区「创建分支」「删除分支」按钮，或分支关系图右键菜单。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>创建：点「创建分支」→ 输入名称</li><li style='margin:3px 0;'>删除：选中分支 → 点「删除分支」</li><li style='margin:3px 0;'>当前分支不可删除，需先切换</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 分支关系图根据 Git refs 与提交拓扑展示关系，不会按名称前缀（如 feature/、fix/）自动分组。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 删除未合并分支会丢失提交，确认提示后再继续。</p></body></html>"))});
+    topics.append({QStringLiteral("merge-rebase"),
+                   QStringLiteral("合并与 Rebase"),
+                   QStringLiteral("分支"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>合并与 Rebase</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把另一分支的改动并入当前分支：Merge 生成合并提交保留历史分叉，Rebase 重放提交形成线性历史。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>分支列表/关系图右键「合并到当前分支」「将当前分支 Rebase 到此分支」。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>选中目标分支</li><li style='margin:3px 0;'>右键 → 合并 或 Rebase</li><li style='margin:3px 0;'>冲突时按冲突处理主题解决</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 已推送到远端的提交不要 Rebase。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Rebase 改写历史，协作分支上使用会带来同步问题。</p></body></html>"))});
+    topics.append({QStringLiteral("reset-three-modes"),
+                   QStringLiteral("Reset 三模式"),
+                   QStringLiteral("高级"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Reset 三模式</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>把当前分支指针移回某个提交：--soft 保留暂存与工作区，--mixed 只保留工作区，--hard 全部丢弃。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>撤销提交、整理暂存区、丢弃本地改动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>QtGitStudio 的提交历史可查看目标提交 Hash；结合文件变化与 Diff 预览确认后再执行 Reset。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>确定目标提交 Hash</li><li style='margin:3px 0;'>--soft：只撤提交，改动还在暂存区</li><li style='margin:3px 0;'>--mixed（默认）：改动回到工作区</li><li style='margin:3px 0;'>--hard：改动彻底丢弃（谨慎）</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 不确定后果时优先用 --soft 或 --mixed。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> --hard 不可恢复，先 Stash 或备份。</p></body></html>"))});
+    topics.append({QStringLiteral("reflog-cherrypick-stash"),
+                   QStringLiteral("Reflog / Cherry-pick / Stash"),
+                   QStringLiteral("高级"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Reflog / Cherry-pick / Stash</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>Reflog 记录所有指针移动用于恢复；Cherry-pick 把单个提交复制到当前分支；Stash 暂存未提交改动。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>提交历史右键「Cherry-pick」；Git 工作流菜单「Stash 管理」；Reflog 可在提交历史中查看 Hash 后使用。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>Stash：工作流 → Stash 管理 → 创建</li><li style='margin:3px 0;'>Cherry-pick：右键提交 → Cherry-pick</li><li style='margin:3px 0;'>Reflog：git reflog 找丢失提交 Hash 后 reset</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> Stash 错误详情会显示在消息框中，不会污染按钮。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> Reflog 记录会随仓库清理过期，尽早恢复。</p></body></html>"))});
+    topics.append({QStringLiteral("conflict-resolution"),
+                   QStringLiteral("冲突解决"),
+                   QStringLiteral("高级"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>冲突解决</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>两侧同时修改同一处时 Git 无法自动合并，需要人工裁决。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>合并/拉取后冲突文件出现在「文件变化」列表（C 冲突），Diff 预览可对比；解决后提交。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>定位冲突文件（C 标记）</li><li style='margin:3px 0;'>打开文件处理 &lt;&lt;&lt;&lt;&lt;&lt;&lt; 标记</li><li style='margin:3px 0;'>保留正确内容并删除标记</li><li style='margin:3px 0;'>暂存并提交完成合并</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 冲突文件在「文件变化」列表带 C 标记，Diff 双栏可对照两侧。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 放弃合并可用「中止合并」按钮回到合并前状态。</p></body></html>"))});
+    return topics;
+}
+}  // namespace
+
+LearningWidget::LearningWidget(QWidget *parent)
+    : QWidget(parent)
+    , m_topics(buildTopics())
+    , m_topicTree(new QTreeWidget(this))
+    , m_content(new QTextBrowser(this)) {
+    m_topicTree->setObjectName("learningTopicTree");
+    m_topicTree->setHeaderHidden(true);
+    m_topicTree->setRootIsDecorated(true);
+    m_topicTree->setMinimumWidth(190);
+    m_topicTree->setStyleSheet(
+        "QTreeWidget { border: 1px solid #E5E7EB; border-radius: 8px;"
+        " padding: 4px; background: #FFFFFF; font-size: 13px; }"
+        "QTreeWidget::item { padding: 6px 4px; border-radius: 4px; }"
+        "QTreeWidget::item:selected { background: #DBEAFE;"
+        " color: #111827; }"
+        "QTreeWidget::item:hover { background: #F3F4F6; }");
+
+    m_content->setObjectName("learningContent");
+    m_content->setOpenExternalLinks(false);
+    m_content->setStyleSheet(
+        "QTextBrowser { border: 1px solid #E5E7EB; border-radius: 8px;"
+        " padding: 12px; background: #FFFFFF; }");
+
+    auto *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(m_topicTree);
+    splitter->addWidget(m_content);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizes({200, 560});
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(splitter);
+
+    buildTopicTree();
+    // v4-P6-10: select the first valid topic by default so the content
+    // area is never an empty blank page when the dialog opens.
+    if (!m_topics.isEmpty()) {
+        selectTopic(m_topics.first().id);
+    }
+    connect(m_topicTree, &QTreeWidget::itemActivated, this,
+            [this](QTreeWidgetItem *item, int) {
+                const QString id = item->data(0, Qt::UserRole).toString();
+                if (!id.isEmpty()) {
+                    onTopicActivated(id);
+                }
+            });
+    // Also react to single clicks (desktop apps often use one click).
+    connect(m_topicTree, &QTreeWidget::itemClicked, this,
+            [this](QTreeWidgetItem *item, int) {
+                const QString id = item->data(0, Qt::UserRole).toString();
+                if (!id.isEmpty()) {
+                    onTopicActivated(id);
+                }
+            });
+}
+
+const QList<LearningTopic> &LearningWidget::topics() {
+    static const QList<LearningTopic> all = buildTopics();
+    return all;
+}
+
+void LearningWidget::buildTopicTree() {
+    m_topicTree->clear();
+    QMap<QString, QTreeWidgetItem *> groupItems;
+    for (const LearningTopic &topic : m_topics) {
+        QTreeWidgetItem *group = groupItems.value(topic.group);
+        if (!group) {
+            group = new QTreeWidgetItem(m_topicTree);
+            group->setText(0, topic.group);
+            QFont f = group->font(0);
+            f.setBold(true);
+            group->setFont(0, f);
+            group->setFlags(group->flags() & ~Qt::ItemIsSelectable);
+            groupItems.insert(topic.group, group);
+        }
+        auto *item = new QTreeWidgetItem(group);
+        item->setText(0, topic.title);
+        item->setData(0, Qt::UserRole, topic.id);
+    }
+    m_topicTree->expandAll();
+}
+
+bool LearningWidget::selectTopic(const QString &id) {
+    for (const LearningTopic &topic : m_topics) {
+        if (topic.id == id) {
+            showTopic(topic);
+            return true;
+        }
+    }
+    return false;
+}
+
+void LearningWidget::onTopicActivated(const QString &id) {
+    for (const LearningTopic &topic : m_topics) {
+        if (topic.id == id) {
+            showTopic(topic);
+            return;
+        }
+    }
+}
+
+void LearningWidget::showTopic(const LearningTopic &topic) {
+    m_currentId = topic.id;
+    m_content->setHtml(topic.contentHtml);
+    m_content->setWindowTitle(topic.title);
+}
+
+QString LearningWidget::currentTopicTitle() const {
+    for (const LearningTopic &topic : m_topics) {
+        if (topic.id == m_currentId) {
+            return topic.title;
+        }
+    }
+    return QString();
+}

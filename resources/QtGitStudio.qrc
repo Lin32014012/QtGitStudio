@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="QtGitStudio-16.png">icons/QtGitStudio-16.png</file>
+        <file alias="QtGitStudio-24.png">icons/QtGitStudio-24.png</file>
+        <file alias="QtGitStudio-32.png">icons/QtGitStudio-32.png</file>
+        <file alias="QtGitStudio-48.png">icons/QtGitStudio-48.png</file>
+        <file alias="QtGitStudio-64.png">icons/QtGitStudio-64.png</file>
+        <file alias="QtGitStudio-128.png">icons/QtGitStudio-128.png</file>
+        <file alias="QtGitStudio-256.png">icons/QtGitStudio-256.png</file>
+    </qresource>
+</RCC>
