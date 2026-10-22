@@ -1,4 +1,5 @@
 #include "GitController.h"
+#include "TextEncoding.h"
 
 GitController::GitController(QObject *parent) : QObject(parent) {
     m_viewModel = new GitViewModel(this);
@@ -389,8 +390,9 @@ void GitController::fileDiffAsync(const QString &path, FileDiffCompletion comple
                     }
                     FileDiffResult out;
                     out.success = true;
-                    out.text = QString::fromUtf8(unstaged.output)
-                        + QString::fromUtf8(staged.output);
+                    // Non-UTF-8 (e.g. GBK) lines are decoded per line.
+                    out.text = TextEncoding::decodeMixedLines(unstaged.output)
+                        + TextEncoding::decodeMixedLines(staged.output);
                     // Git marks binary files with "Binary files ... differ"
                     // (or the newer "Files ... differ"); NUL bytes are a
                     // second-order signal. We only READ git's verdict.

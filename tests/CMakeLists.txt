@@ -75,6 +75,7 @@ add_test_target_standalone(test_conflict_marker_parser test_conflict_marker_pars
 add_test_target(test_conflict_resolver test_conflict_resolver.cpp)
 add_test_target_standalone(test_conflict_resolution_service test_conflict_resolution_service.cpp)
 add_test_target_standalone(test_conflict_workflow test_conflict_workflow.cpp)
+add_test_target_standalone(test_text_encoding test_text_encoding.cpp)
 
 # Keep the standard `ctest` entry point self-contained on every platform:
 #  - QT_QPA_PLATFORM=offscreen so GUI tests run headless (CI, SSH).

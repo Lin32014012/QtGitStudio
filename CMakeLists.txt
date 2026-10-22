@@ -54,6 +54,8 @@ add_library(QtGitStudio_lib STATIC
     src/GitDiffParser.h
     src/GitDiffParser.cpp
     src/EncodingDiagnostic.cpp
+    src/TextEncoding.cpp
+    src/TextEncoding.h
     src/DiffViewerWidget.cpp
     src/GitRemoteService.cpp
     src/GitMergeService.cpp

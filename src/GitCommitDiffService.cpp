@@ -1,4 +1,5 @@
 #include "GitCommitDiffService.h"
+#include "TextEncoding.h"
 #include "GitCommandExecutor.h"
 
 #include <QRegularExpression>
@@ -36,7 +37,7 @@ CommitDiff GitCommitDiffService::parseShow(const QString &hash,
                                            const QByteArray &showOutput) {
     CommitDiff diff;
     diff.hash = hash;
-    const QString text = QString::fromUtf8(showOutput);
+    const QString text = TextEncoding::decodeMixedLines(showOutput);
     diff.diffText = text;
 
     static const QRegularExpression fileRe(

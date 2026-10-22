@@ -2,6 +2,7 @@
 
 #include "GitCommandExecutor.h"
 #include "GitConflictService.h"
+#include "TextEncoding.h"
 
 #include <QDir>
 #include <QFile>
@@ -28,11 +29,6 @@ bool isSafeRelativePath(const QString &path) {
     const QString cleaned = QDir::cleanPath(path);
     return cleaned != QStringLiteral("..") && !cleaned.startsWith(QStringLiteral("../"))
         && cleaned != QStringLiteral(".") && cleaned == path;
-}
-
-bool isValidUtf8(const QByteArray &bytes) {
-    const QByteArray body = bytes.startsWith("\xEF\xBB\xBF") ? bytes.mid(3) : bytes;
-    return QString::fromUtf8(body).toUtf8() == body;
 }
 
 } // namespace
@@ -143,19 +139,23 @@ bool GitConflictResolutionService::workingTreeMatches(const QString &absolutePat
 QByteArray GitConflictResolutionService::encodeTextResult(const QByteArray &currentBytes,
                                                            const QString &text,
                                                            bool *supported) {
-    *supported = isValidUtf8(currentBytes);
-    if (!*supported) {
+    // Write the result back in the file's ORIGINAL encoding (UTF-8, UTF-8
+    // BOM, UTF-16 with BOM, or GB18030/GBK) and line-ending style. Files
+    // whose encoding cannot be detected losslessly are refused.
+    const TextEncoding::Decoded current = TextEncoding::decode(currentBytes);
+    if (!current.ok || current.kind == TextEncoding::Kind::Unknown) {
+        *supported = false;
         return {};
     }
-    QByteArray result = text.toUtf8();
-    if (currentBytes.contains("\r\n")) {
-        result.replace("\r\n", "\n");
-        result.replace("\n", "\r\n");
+    QString normalized = text;
+    if (current.text.contains(QStringLiteral("\r\n"))) {
+        normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+        normalized.replace(QStringLiteral("\n"), QStringLiteral("\r\n"));
     }
-    if (currentBytes.startsWith("\xEF\xBB\xBF")) {
-        result.prepend("\xEF\xBB\xBF");
-    }
-    return result;
+    bool ok = false;
+    QByteArray result = TextEncoding::encode(normalized, current.kind, &ok);
+    *supported = ok;
+    return ok ? result : QByteArray();
 }
 
 QStringList GitConflictResolutionService::commandForOperation(
@@ -289,7 +289,7 @@ void GitConflictResolutionService::applyValidatedPlan(const OperationContext &co
     const QByteArray bytes = encodeTextResult(currentBytes, plan.resultContent, &supported);
     if (!supported) {
         completion(failure(ConflictApplyError::UnsupportedEncoding,
-                           QStringLiteral("Only UTF-8, UTF-8 BOM, and ASCII text can be safely written.")));
+                           QStringLiteral("Only UTF-8 (with or without BOM), UTF-16 with BOM, GB18030/GBK and ASCII text can be safely written.")));
         return;
     }
     if (!isCurrent(context)) {

@@ -1,4 +1,5 @@
 #include "ConflictResolverWidget.h"
+#include "TextEncoding.h"
 
 #include "GitConflictService.h"
 #include "GitConflictResolutionService.h"
@@ -502,7 +503,9 @@ void ConflictResolverWidget::loadCurrentFile() {
             const bool deletion = isDeletionConflict(current->file.type)
                 && (!current->file.hasOurs || !current->file.hasTheirs);
             if (!current->binary && !deletion) {
-                current->resultContent = QString::fromUtf8(workingContent);
+                // Decode in the file's own encoding (UTF-8 / BOM / GB18030...);
+                // write-back re-encodes with the same encoding.
+                current->resultContent = TextEncoding::decode(workingContent).text;
                 current->parseResult = ConflictMarkerParser::parse(current->resultContent);
                 current->initialHunkCount = current->parseResult.hunks.size();
                 self->updateParseAndPlan(current, ResolutionAction::None);
@@ -959,7 +962,7 @@ void ConflictResolverWidget::setSourceText(QPlainTextEdit *editor,
                                            const QByteArray &content,
                                            bool present,
                                            const QString &missingText) {
-    editor->setPlainText(present ? QString::fromUtf8(content) : missingText);
+    editor->setPlainText(present ? TextEncoding::decode(content).text : missingText);
 }
 
 bool ConflictResolverWidget::isResolverSessionCurrent() const {
