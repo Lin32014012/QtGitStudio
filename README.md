@@ -54,7 +54,7 @@ flowchart TD
 |---|---|
 | `src/core` | 命令执行器、控制器、视图模型、仓库会话、编码检测 |
 | `src/parsers` | `git status/diff/branch` 输出解析，冲突标记状态机 |
-| `src/services` | 各个 Git 领域服务（约 19 个），冲突模型与 ResolutionPlan |
+| `src/services` | 15 个 Git 领域服务，冲突模型与 ResolutionPlan |
 | `src/github` | GitHub 账号、仓库、Release 服务 |
 | `src/platform` | 凭据存储（编译期选择后端） |
 | `src/ui` | 所有 Widget 和对话框 |
