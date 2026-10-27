@@ -103,5 +103,12 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 600 -LE perf
 
+      # The failing case's QtTest output does not survive
+      # --output-on-failure when the process dies during teardown, so a
+      # failing run re-executes that test verbosely to capture it.
+      - name: Diagnose the failing test verbosely
+        if: failure()
+        run: ctest --test-dir build -R "^test_mainwindow$" -V --output-on-failure
+
       - name: Encoding tests (verbose, shows GB18030 backend / skips)
         run: ctest --test-dir build -R "test_text_encoding|test_conflict_resolution_service" -V
