@@ -10,6 +10,10 @@ QtGitStudio 是一个基于 **C++17 / Qt 6 Widgets** 的 **Git 可视化桌面�
 
 ## 截图
 
+启动页：左侧是最近项目栏（项目名、分支、路径、磁盘存在标记），右侧是快速开始入口、三步上手引导和当前 Git 环境。
+
+![QtGitStudio 启动页](docs/images/welcome.png)
+
 主界面：仓库状态、远程操作入口、分支列表（含当前分支标记）与文件变化列表（暂存 / 未暂存状态用字母标记）。
 
 ![QtGitStudio 主界面](docs/images/main-window.png)
