@@ -160,6 +160,141 @@ QToolButton[role="toolbar"]::menu-indicator {
     image: none;
 }
 
+QPushButton[role="secondary"] {
+    background: #F3F4F6;
+    color: #374151;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton[role="secondary"]:hover {
+    background: #E5E7EB;
+}
+
+QPushButton[role="dangerOutline"] {
+    background: #FEF2F2;
+    color: #B91C1C;
+    border: 1px solid #FCA5A5;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QPushButton[role="dangerOutline"]:hover {
+    background: #FEE2E2;
+    border-color: #F87171;
+}
+
+QPushButton[role="dangerOutline"]:pressed {
+    background: #FECACA;
+}
+
+QPushButton[role="dangerOutline"]:disabled {
+    background: #F3F4F6;
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+}
+
+QPushButton[role="primaryLarge"] {
+    background: #2563EB;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QPushButton[role="primaryLarge"]:hover {
+    background: #1D4ED8;
+}
+
+QPushButton[role="primaryLarge"]:pressed {
+    background: #1E40AF;
+}
+
+QLabel[role="dropOverlay"] {
+    background: rgba(255, 255, 255, 235);
+    color: #171A1F;
+    font-size: 18px;
+    font-weight: 600;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+}
+
+
+/* ---------------- action-button variants (v4-P6-26) ----------------
+ * ActionButtonFeedback tags configured buttons with a `variant`; these
+ * rules own every colour, including the busy/success/error feedback
+ * states. State rules come last so they beat :disabled (a busy button is
+ * disabled while it reports progress).
+ */
+QPushButton[variant] {
+    color: #FFFFFF;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+}
+
+QPushButton[variant="blue"] { background: #2563EB; }
+QPushButton[variant="blue"]:hover { background: #1D4ED8; }
+QPushButton[variant="blue"]:pressed { background: #1E40AF; }
+
+QPushButton[variant="deep"] { background: #1D4ED8; }
+QPushButton[variant="deep"]:hover { background: #1E40AF; }
+QPushButton[variant="deep"]:pressed { background: #1E3A8A; }
+
+QPushButton[variant="green"] { background: #16A34A; }
+QPushButton[variant="green"]:hover { background: #15803D; }
+QPushButton[variant="green"]:pressed { background: #166534; }
+
+QPushButton[variant="red"] { background: #DC2626; }
+QPushButton[variant="red"]:hover { background: #B91C1C; }
+QPushButton[variant="red"]:pressed { background: #991B1B; }
+
+QPushButton[variant="violet"] { background: #7C3AED; }
+QPushButton[variant="violet"]:hover { background: #6D28D9; }
+QPushButton[variant="violet"]:pressed { background: #5B21B6; }
+
+QPushButton[variant="teal"] { background: #0F9F9A; }
+QPushButton[variant="teal"]:hover { background: #0D8B87; }
+QPushButton[variant="teal"]:pressed { background: #0B7471; }
+
+QPushButton[variant="slate"] { background: #64748B; }
+QPushButton[variant="slate"]:hover { background: #475569; }
+QPushButton[variant="slate"]:pressed { background: #334155; }
+
+QPushButton[variant]:disabled {
+    background: #E5E7EB;
+    color: #9CA3AF;
+}
+
+QPushButton[variant][busy="true"] {
+    background: #475569;
+    color: #FFFFFF;
+}
+
+QPushButton[variant][result="success"] {
+    background: #16A34A;
+    color: #FFFFFF;
+}
+
+QPushButton[variant][result="error"] {
+    background: #DC2626;
+    color: #FFFFFF;
+}
+
+QPushButton[variant]:focus {
+    border-color: #2563EB;
+    outline: none;
+}
+
 /* ---------------- base ---------------- */
 QWidget {
     font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", sans-serif;

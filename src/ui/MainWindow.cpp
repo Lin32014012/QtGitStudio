@@ -418,14 +418,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_abortMergeButton = new QPushButton("中止合并", this);
     m_abortMergeButton->setObjectName("abortMergeButton");
     m_abortMergeButton->setEnabled(false);
-    m_abortMergeButton->setStyleSheet(
-        "QPushButton { background: #FEF2F2; color: #B91C1C;"
-        " border: 1px solid #FCA5A5; border-radius: 6px;"
-        " padding: 9px 14px; font-size: 14px; font-weight: 600; }"
-        "QPushButton:hover { background: #FEE2E2; border-color: #F87171; }"
-        "QPushButton:pressed { background: #FECACA; }"
-        "QPushButton:disabled { background: #F3F4F6; color: #9CA3AF;"
-        " border-color: #E5E7EB; }");
+    m_abortMergeButton->setProperty("role", QStringLiteral("dangerOutline"));
     branchButtonLayout->addWidget(m_abortMergeButton);
     contentLayout->addLayout(branchButtonLayout);
     
@@ -436,47 +429,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     graphTitle->setProperty("role", QStringLiteral("cardTitle"));
     m_graphButton = new QPushButton("打开提交历史", this);
     m_graphButton->setObjectName("commitGraphButton");
-    m_graphButton->setStyleSheet(
-        "QPushButton { background: #2563EB; color: white; border: none;"
-        " border-radius: 6px; padding: 5px 14px; font-size: 12px; }"
-        "QPushButton:hover { background: #1D4ED8; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_graphButton->setProperty("role", QStringLiteral("ghost"));
     m_graphButton->setEnabled(false);
     // v4-P3-4: tag management entry next to the commit graph.
     m_tagButton = new QPushButton("标签管理", this);
     m_tagButton->setObjectName("tagManagerButton");
-    m_tagButton->setStyleSheet(
-        "QPushButton { background: #059669; color: white; border: none;"
-        " border-radius: 6px; padding: 5px 14px; font-size: 12px; }"
-        "QPushButton:hover { background: #047857; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_tagButton->setProperty("role", QStringLiteral("ghost"));
     m_tagButton->setEnabled(false);
     // v4-P3-5: stash management entry next to the commit graph.
     m_stashButton = new QPushButton("Stash 管理", this);
     m_stashButton->setObjectName("stashManagerButton");
-    m_stashButton->setStyleSheet(
-        "QPushButton { background: #D97706; color: white; border: none;"
-        " border-radius: 6px; padding: 5px 14px; font-size: 12px; }"
-        "QPushButton:hover { background: #B45309; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_stashButton->setProperty("role", QStringLiteral("ghost"));
     m_stashButton->setEnabled(false);
     // v4-P4-3: bisect entry next to the commit graph.
     m_bisectButton = new QPushButton("二分查找", this);
     m_bisectButton->setObjectName("bisectButton");
-    m_bisectButton->setStyleSheet(
-        "QPushButton { background: #7C3AED; color: white; border: none;"
-        " border-radius: 6px; padding: 5px 14px; font-size: 12px; }"
-        "QPushButton:hover { background: #6D28D9; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_bisectButton->setProperty("role", QStringLiteral("ghost"));
     m_bisectButton->setEnabled(false);
     // v4-P4-4: GitHub release management entry.
     m_releaseButton = new QPushButton("Release 管理", this);
     m_releaseButton->setObjectName("releaseButton");
-    m_releaseButton->setStyleSheet(
-        "QPushButton { background: #0D1117; color: white; border: none;"
-        " border-radius: 6px; padding: 5px 14px; font-size: 12px; }"
-        "QPushButton:hover { background: #161B22; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_releaseButton->setProperty("role", QStringLiteral("ghost"));
     m_releaseButton->setEnabled(false);
 
     // v4-P6-6 regression fix: the five advanced buttons were removed
@@ -500,13 +473,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_workflowButton->setPopupMode(QToolButton::InstantPopup);
     m_workflowButton->setToolTip(
         QStringLiteral("标签管理 / Stash 管理 / 二分查找 / Release 管理"));
-    m_workflowButton->setStyleSheet(
-        "QToolButton { background: #1F2937; color: white; border: none;"
-        " border-radius: 6px; padding: 6px 14px; font-size: 12px;"
-        " font-weight: 600; }"
-        "QToolButton:hover { background: #374151; }"
-        "QToolButton:disabled { background: #9CA3AF; }"
-        "QToolButton::menu-indicator { image: none; }");
+    m_workflowButton->setProperty("role", QStringLiteral("toolbar"));
     m_workflowButton->setEnabled(false);
     auto *workflowMenu = new QMenu(this);
     // v4-P6-15: the commit graph is no longer user-visible - the
@@ -678,11 +645,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         new QPushButton(QStringLiteral("返回首页"), m_noRepoWidget);
     noRepoBack->setObjectName("noRepoBackButton");
     noRepoBack->setCursor(Qt::PointingHandCursor);
-    noRepoBack->setStyleSheet(
-        "QPushButton { background: #F3F4F6; color: #374151;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 8px 14px; font-size: 13px; font-weight: 600; }"
-        "QPushButton:hover { background: #E5E7EB; }");
+    noRepoBack->setProperty("role", QStringLiteral("secondary"));
     noRepoTop->addWidget(noRepoBack);
     noRepoTop->addStretch();
     noRepoLayout->addLayout(noRepoTop);
@@ -690,15 +653,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             &MainWindow::onGoHome);
     auto *noRepoTip = new QLabel(
         QStringLiteral("尚未打开 Git 仓库"), m_noRepoWidget);
-    noRepoTip->setStyleSheet(
-        "font-size: 20px; font-weight: 700; color: #111827;");
+    noRepoTip->setProperty("role", QStringLiteral("pageTitle"));
     noRepoLayout->addWidget(noRepoTip);
     auto *noRepoHint = new QLabel(
         QStringLiteral("请选择一种方式开始：打开已有仓库、创建新仓库"
                        "或从远程克隆。"),
         m_noRepoWidget);
     noRepoHint->setWordWrap(true);
-    noRepoHint->setStyleSheet("font-size: 13px; color: #6B7280;");
+    noRepoHint->setProperty("role", QStringLiteral("bodyText"));
     noRepoLayout->addWidget(noRepoHint);
     noRepoLayout->addSpacing(6);
     auto *openRepoButton =
@@ -713,12 +675,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     for (QPushButton *b : {openRepoButton, initRepoButton,
                            cloneRepoButton}) {
         b->setCursor(Qt::PointingHandCursor);
-        b->setStyleSheet(
-            "QPushButton { background: #2563EB; color: white;"
-            " border: none; border-radius: 6px; padding: 10px 22px;"
-            " font-size: 14px; font-weight: 600; }"
-            "QPushButton:hover { background: #1D4ED8; }"
-            "QPushButton:pressed { background: #1E40AF; }");
+        b->setProperty("role", QStringLiteral("primaryLarge"));
         b->setMinimumWidth(180);
         noRepoLayout->addWidget(b);
     }
@@ -799,9 +756,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_dropOverlay = new QLabel(this);
     m_dropOverlay->setObjectName("dropOverlay");
     m_dropOverlay->setAlignment(Qt::AlignCenter);
-    m_dropOverlay->setStyleSheet(
-        "background-color: rgba(255,255,255,235); color:#111827;"
-        "font-size:18px; font-weight:600; border:1px solid #e5e7eb;");
+    m_dropOverlay->setProperty("role", QStringLiteral("dropOverlay"));
     m_dropOverlay->setText("正在打开仓库…");
     m_dropOverlay->hide();
     connect(m_changesTree, &QTreeWidget::itemSelectionChanged,

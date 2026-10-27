@@ -8,20 +8,39 @@
 #include <QTimer>
 
 namespace {
-QString buttonStyle(
-    const QString &objectName,
-    const ActionButtonFeedback::Palette &palette) {
-    return QString(
-               "QPushButton#%1 { background: %2; color: white; padding: 9px 14px; border: 1px solid transparent; border-radius: 6px; font-size: 14px; font-weight: 600; }"
-               "QPushButton#%1:hover { background: %3; }"
-               "QPushButton#%1:pressed { background: %4; }"
-               "QPushButton#%1:disabled { background: #E5E7EB; color: #9CA3AF; }"
-               "QPushButton#%1[busy=\"true\"] { background: #475569; color: white; }"
-               "QPushButton#%1[result=\"success\"] { background: #16A34A; color: white; }"
-               "QPushButton#%1[result=\"error\"] { background: #DC2626; color: white; }"
-               "QPushButton#%1:focus { border-color: #2563EB; outline: none; }")
-        .arg(objectName, palette.normal, palette.hover, palette.pressed);
+
+// The palette a caller passes is a family selector, not a styling source:
+// the button's normal colour picks one of the theme's variants and
+// theme.qss owns every actual colour (normal/hover/pressed/disabled plus
+// the busy/success/error feedback states). Callers keep passing a
+// Palette so no call site has to change.
+QString variantFor(const QString &normalColor) {
+    const QString normal = normalColor.toUpper();
+    if (normal == QStringLiteral("#2563EB") ||
+        normal == QStringLiteral("#0D6EFD")) {
+        return QStringLiteral("blue");
+    }
+    if (normal == QStringLiteral("#16A34A")) {
+        return QStringLiteral("green");
+    }
+    if (normal == QStringLiteral("#DC2626")) {
+        return QStringLiteral("red");
+    }
+    if (normal == QStringLiteral("#7C3AED")) {
+        return QStringLiteral("violet");
+    }
+    if (normal == QStringLiteral("#0F9F9A")) {
+        return QStringLiteral("teal");
+    }
+    if (normal == QStringLiteral("#64748B")) {
+        return QStringLiteral("slate");
+    }
+    if (normal == QStringLiteral("#1D4ED8")) {
+        return QStringLiteral("deep");
+    }
+    return QStringLiteral("blue");
 }
+
 }
 
 void ActionButtonFeedback::configure(
@@ -34,7 +53,7 @@ void ActionButtonFeedback::configure(
     button->setProperty("busy", false);
     button->setProperty("result", QString());
     button->setProperty("readyWhenIdle", button->isEnabled());
-    button->setStyleSheet(buttonStyle(button->objectName(), palette));
+    button->setProperty("variant", variantFor(palette.normal));
     button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     int widestText = button->fontMetrics().horizontalAdvance(button->text());
@@ -44,6 +63,7 @@ void ActionButtonFeedback::configure(
     button->setMinimumWidth(widestText + 34);
     button->setMinimumHeight(qMax(button->minimumHeight(), 40));
     setReady(button, button->isEnabled());
+    refreshStyle(button);
 }
 
 void ActionButtonFeedback::setReady(QPushButton *button, bool ready) {

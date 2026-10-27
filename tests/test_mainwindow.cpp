@@ -9,6 +9,7 @@
 #include <QTextEdit>
 #include <QProcess>
 #include <QFile>
+#include <QDir>
 #include <QFileDialog>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -170,8 +171,42 @@ private slots:
     void cleanupTestCase();
 };
 
+namespace {
+
+// Production loads the theme from the Qt resource bundle in main(). The test
+// binary has no resource bundle and never runs main(), so load the same file
+// from the source tree and install it on the application - the appearance
+// assertions below then exercise the real sheet, not a stub.
+QString installThemeSheet() {
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        appDir + QStringLiteral("/../../resources/theme.qss"),
+        appDir + QStringLiteral("/../resources/theme.qss"),
+        QDir::currentPath() + QStringLiteral("/resources/theme.qss"),
+        QDir::currentPath() + QStringLiteral("/../resources/theme.qss"),
+    };
+    for (const QString &candidate : candidates) {
+        QFile file(candidate);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            continue;
+        }
+        const QString sheet = QString::fromUtf8(file.readAll());
+        if (!sheet.trimmed().isEmpty()) {
+            qApp->setStyleSheet(sheet);
+            return sheet;
+        }
+    }
+    return QString();
+}
+
+}  // namespace
+
 void TestMainWindow::initTestCase() {
     isolateTestSettings();
+    const QString theme = installThemeSheet();
+    QVERIFY2(!theme.isEmpty(),
+             "theme.qss not found next to the build tree - styling "
+             "assertions would be meaningless");
     // v4-P6-21R2: on this machine the user home directory is a git
     // work tree - after a test deletes a repo's .git, `git status`
     // would silently succeed inside the parent work tree and make
@@ -484,12 +519,25 @@ void TestMainWindow::testBranchActionRegression() {
     QVERIFY(branchTree != nullptr);
     QVERIFY(deleteButton != nullptr);
     QVERIFY(createButton != nullptr);
+    // Styling lives in the app sheet now: each configured button carries a
+    // variant and the sheet supplies every interaction state for it.
+    const QString sheet = qApp->styleSheet();
+    QVERIFY(!sheet.isEmpty());
     for (QPushButton *button : {switchButton, createButton, deleteButton}) {
-        QVERIFY(button->styleSheet().contains("QPushButton#" + button->objectName() + ":hover"));
-        QVERIFY(button->styleSheet().contains("QPushButton#" + button->objectName() + ":pressed"));
-        QVERIFY(button->styleSheet().contains("QPushButton#" + button->objectName() + ":disabled"));
-        QVERIFY(button->styleSheet().contains("QPushButton#" + button->objectName() + ":focus"));
+        const QString variant = button->property("variant").toString();
+        QVERIFY2(!variant.isEmpty(),
+                 qPrintable("no variant on " + button->objectName()));
+        const QString selector =
+            QStringLiteral("QPushButton[variant=\"%1\"]").arg(variant);
+        QVERIFY2(sheet.contains(selector + ":hover"),
+                 qPrintable("no hover rule for " + variant));
+        QVERIFY2(sheet.contains(selector + ":pressed"),
+                 qPrintable("no pressed rule for " + variant));
+        QVERIFY2(sheet.contains(selector + " { background:"),
+                 qPrintable("no base rule for " + variant));
     }
+    QVERIFY(sheet.contains("QPushButton[variant]:disabled"));
+    QVERIFY(sheet.contains("QPushButton[variant]:focus"));
 
     QTreeWidgetItem *featureBranch = branchTree->branchItem("feature/demo");
     QVERIFY(featureBranch != nullptr);
@@ -805,12 +853,16 @@ void TestMainWindow::testActionButtonFeedbackStates() {
     button.resize(button.sizeHint());
     const QSize originalSize = button.size();
 
-    QVERIFY(button.styleSheet().contains(":hover"));
-    QVERIFY(button.styleSheet().contains(":pressed"));
-    QVERIFY(button.styleSheet().contains(":disabled"));
-    QVERIFY(button.styleSheet().contains("[busy=\"true\"]"));
-    QVERIFY(button.styleSheet().contains("[result=\"success\"]"));
-    QVERIFY(button.styleSheet().contains("[result=\"error\"]"));
+    const QString themeSheet = qApp->styleSheet();
+    const QString variantSelector = QStringLiteral("QPushButton[variant=\"%1\"]")
+                                        .arg(button.property("variant").toString());
+    QVERIFY(!button.property("variant").toString().isEmpty());
+    QVERIFY(themeSheet.contains(variantSelector + ":hover"));
+    QVERIFY(themeSheet.contains(variantSelector + ":pressed"));
+    QVERIFY(themeSheet.contains("QPushButton[variant]:disabled"));
+    QVERIFY(themeSheet.contains("QPushButton[variant][busy=\"true\"]"));
+    QVERIFY(themeSheet.contains("QPushButton[variant][result=\"success\"]"));
+    QVERIFY(themeSheet.contains("QPushButton[variant][result=\"error\"]"));
     QVERIFY(!button.styleSheet().contains("padding-top"));
 
     ActionButtonFeedback::showBusy(&button, "正在执行…");
@@ -856,14 +908,20 @@ void TestMainWindow::testTopActionButtonPresentation() {
     const QList<QPushButton *> buttons = {goHomeButton, changeProjectButton, refreshButton};
     for (QPushButton *button : buttons) {
         const QSize initialSize = button->size();
-        QVERIFY(button->styleSheet().contains(":hover"));
-        QVERIFY(button->styleSheet().contains(":pressed"));
-        QVERIFY(button->styleSheet().contains(":disabled"));
-        QVERIFY(button->styleSheet().contains(":focus"));
-        QVERIFY(button->styleSheet().contains("#2563EB"));
-        QVERIFY(button->styleSheet().contains("[busy=\"true\"]"));
-        QVERIFY(button->styleSheet().contains("[result=\"success\"]"));
-        QVERIFY(button->styleSheet().contains("[result=\"error\"]"));
+        const QString variant = button->property("variant").toString();
+        QVERIFY2(!variant.isEmpty(),
+                 qPrintable("no variant on " + button->objectName()));
+        const QString selector =
+            QStringLiteral("QPushButton[variant=\"%1\"]").arg(variant);
+        const QString sheet = qApp->styleSheet();
+        QVERIFY(sheet.contains(selector + ":hover"));
+        QVERIFY(sheet.contains(selector + ":pressed"));
+        QVERIFY(sheet.contains(selector + " { background:"));
+        QVERIFY(sheet.contains("QPushButton[variant]:disabled"));
+        QVERIFY(sheet.contains("QPushButton[variant]:focus"));
+        QVERIFY(sheet.contains("QPushButton[variant][busy=\"true\"]"));
+        QVERIFY(sheet.contains("QPushButton[variant][result=\"success\"]"));
+        QVERIFY(sheet.contains("QPushButton[variant][result=\"error\"]"));
         ActionButtonFeedback::showBusy(button, button->property("normalText").toString());
         QCOMPARE(button->size(), initialSize);
         ActionButtonFeedback::setReady(button, true);
