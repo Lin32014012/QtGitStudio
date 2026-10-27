@@ -1,4 +1,5 @@
 #include "WelcomeWidget.h"
+#include "Theme.h"
 
 #include <QMouseEvent>
 #include <QEnterEvent>
@@ -15,21 +16,20 @@ namespace {
 
 // Rounded status dot as a plain QLabel so the row stays free of nested
 // QFrames (the recent-projects regression counts QFrame children).
-QLabel *makeDot(QWidget *parent, const QString &color, int size = 6) {
+// Presence dots are six pixels square, so the sheet's 3px radius fits;
+// state (ok / idle / danger) selects the colour in theme.qss.
+QLabel *makeDot(QWidget *parent, const QString &state) {
     auto *dot = new QLabel(parent);
-    dot->setFixedSize(size, size);
-    dot->setStyleSheet(QStringLiteral(
-        "QLabel { background: %1; border-radius: %2px; }")
-        .arg(color).arg(size / 2));
+    dot->setFixedSize(6, 6);
+    dot->setProperty("role", QStringLiteral("dot"));
+    dot->setProperty("state", state);
     return dot;
 }
 
-void setDotColor(QLabel *dot, const QString &color) {
+void setDotState(QLabel *dot, const QString &state) {
     if (!dot) return;
-    const int size = dot->width() > 0 ? dot->width() : 6;
-    dot->setStyleSheet(QStringLiteral(
-        "QLabel { background: %1; border-radius: %2px; }")
-        .arg(color).arg(size / 2));
+    dot->setProperty("state", state);
+    Theme::restyle(dot);
 }
 
 QLabel *makeLabel(const QString &text, const char *role, QWidget *parent) {
@@ -127,15 +127,12 @@ ActionBlock::ActionBlock(const QIcon &icon, const QString &title,
     auto *iconTile = new QFrame(this);
     iconTile->setObjectName("iconTile");
     iconTile->setFixedSize(34, 34);
-    iconTile->setStyleSheet(QStringLiteral(
-        "QFrame#iconTile { background: %1; border: none; border-radius: 10px; }")
-        .arg([&accent]() {
-            if (accent == QStringLiteral("#059669"))
-                return QStringLiteral("#F0FDF4");
-            if (accent == QStringLiteral("#7C3AED"))
-                return QStringLiteral("#F5F3FF");
-            return QStringLiteral("#EFF4FF");
-        }()));
+    iconTile->setAttribute(Qt::WA_StyledBackground, true);
+    iconTile->setProperty("role", QStringLiteral("iconTile"));
+    iconTile->setProperty(
+        "tint", accent == QStringLiteral("#059669") ? QStringLiteral("green")
+                : accent == QStringLiteral("#7C3AED") ? QStringLiteral("violet")
+                                                      : QStringLiteral("blue"));
     auto *tileLayout = new QVBoxLayout(iconTile);
     tileLayout->setContentsMargins(0, 0, 0, 0);
     auto *iconLabel = new QLabel(iconTile);
@@ -245,14 +242,8 @@ void WelcomeWidget::buildSidebar() {
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet(
-        QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget"
-                       " { background: transparent; border: none; }"));
     m_recentContainer = new QFrame(scroll);
     m_recentContainer->setObjectName(QStringLiteral("recentContainer"));
-    m_recentContainer->setStyleSheet(
-        QStringLiteral("QFrame#recentContainer { background: transparent;"
-                       " border: none; }"));
     m_recentLayout = new QVBoxLayout(m_recentContainer);
     m_recentLayout->setContentsMargins(8, 0, 8, 0);
     m_recentLayout->setSpacing(2);
@@ -290,7 +281,7 @@ void WelcomeWidget::buildSidebar() {
 
     auto *envRow = new QHBoxLayout();
     envRow->setSpacing(7);
-    m_envDot = makeDot(foot, QStringLiteral("#CBD2DC"));
+    m_envDot = makeDot(foot, QStringLiteral("idle"));
     m_envStatusLabel = makeLabel(QStringLiteral("Git 环境：检测中\u2026"),
                                  "body", foot);
     envRow->addWidget(m_envDot);
@@ -299,7 +290,7 @@ void WelcomeWidget::buildSidebar() {
 
     auto *ghRow = new QHBoxLayout();
     ghRow->setSpacing(7);
-    m_githubDot = makeDot(foot, QStringLiteral("#CBD2DC"));
+    m_githubDot = makeDot(foot, QStringLiteral("idle"));
     m_githubStatusLabel = makeLabel(QStringLiteral("GitHub：未连接"),
                                     "body", foot);
     ghRow->addWidget(m_githubDot);
@@ -329,8 +320,6 @@ void WelcomeWidget::buildSidebar() {
 void WelcomeWidget::buildMainArea() {
     m_mainArea = new QWidget(this);
     m_mainArea->setAttribute(Qt::WA_StyledBackground, true);
-    m_mainArea->setStyleSheet(
-        QStringLiteral("QWidget#welcomeMain { background: #EEF0F4; }"));
     m_mainArea->setObjectName(QStringLiteral("welcomeMain"));
 
     auto *layout = new QVBoxLayout(m_mainArea);
@@ -441,9 +430,6 @@ QWidget *WelcomeWidget::buildGuidePanel() {
     for (const Step &step : steps) {
         auto *card = new QFrame(panel);
         card->setObjectName(QStringLiteral("guideStep"));
-        card->setStyleSheet(QStringLiteral(
-            "QFrame#guideStep { background: #F7F9FC; border: 1px solid #EEF1F6;"
-            " border-radius: 9px; }"));
         card->setAttribute(Qt::WA_StyledBackground, true);
         auto *cardLayout = new QVBoxLayout(card);
         cardLayout->setContentsMargins(12, 11, 12, 11);
@@ -481,18 +467,14 @@ QFrame *WelcomeWidget::makeRecentRow(const QString &path) {
     iconLabel->setPixmap(style()->standardIcon(QStyle::SP_DirIcon)
                              .pixmap(16, 16));
     iconLabel->setAlignment(Qt::AlignCenter);
-    iconLabel->setStyleSheet(QStringLiteral(
-        "QLabel { background: #FFFFFF; border: 1px solid #E1E6EF;"
-        " border-radius: 7px; }"));
+    iconLabel->setProperty("role", QStringLiteral("rowIcon"));
     rowLayout->addWidget(iconLabel);
 
     auto *textLayout = new QVBoxLayout();
     textLayout->setSpacing(1);
     textLayout->setContentsMargins(0, 0, 0, 0);
     auto *nameLabel = new QLabel(QFileInfo(path).fileName(), row);
-    nameLabel->setStyleSheet(QStringLiteral(
-        "font-size: 12.5px; font-weight: 600; color: #171A1F;"
-        " border: none; background: transparent;"));
+    nameLabel->setProperty("role", QStringLiteral("rowName"));
     textLayout->addWidget(nameLabel);
 
     // Secondary line: branch + elided path (monospace, muted).
@@ -522,8 +504,7 @@ QFrame *WelcomeWidget::makeRecentRow(const QString &path) {
     }
     // Rows only exist for paths that are still directories, so the dot is
     // green by construction - it marks "present on disk", nothing more.
-    tail->addWidget(makeDot(row, QStringLiteral("#10B981"), 6),
-                    0, Qt::AlignVCenter);
+    tail->addWidget(makeDot(row, QStringLiteral("ok")), 0, Qt::AlignVCenter);
     rowLayout->addLayout(tail);
 
     row->installEventFilter(
@@ -541,8 +522,8 @@ void WelcomeWidget::setEnvironmentStatus(bool available,
         : QStringLiteral("Git 环境不可用");
     if (m_envStatusLabel) m_envStatusLabel->setText(text);
     if (m_stripGitLabel) m_stripGitLabel->setText(text);
-    setDotColor(m_envDot, available ? QStringLiteral("#10B981")
-                                    : QStringLiteral("#DC2626"));
+    setDotState(m_envDot, available ? QStringLiteral("ok")
+                                    : QStringLiteral("danger"));
 }
 
 void WelcomeWidget::setGitHubStatus(bool loggedIn, const QString &username) {
@@ -553,8 +534,8 @@ void WelcomeWidget::setGitHubStatus(bool loggedIn, const QString &username) {
               username.isEmpty() ? QStringLiteral("已连接") : username)
         : QStringLiteral("GitHub 未连接");
     if (m_githubStatusLabel) m_githubStatusLabel->setText(text);
-    setDotColor(m_githubDot, loggedIn ? QStringLiteral("#10B981")
-                                      : QStringLiteral("#CBD2DC"));
+    setDotState(m_githubDot, loggedIn ? QStringLiteral("ok")
+                                      : QStringLiteral("idle"));
 }
 
 void WelcomeWidget::refreshStrip() {

@@ -1,4 +1,5 @@
 #include "CreateBranchDialog.h"
+#include "Theme.h"
 
 #include "ActionButtonFeedback.h"
 #include "BranchTreeWidget.h"
@@ -31,18 +32,18 @@ CreateBranchDialog::CreateBranchDialog(
     layout->setSpacing(12);
 
     auto *title = new QLabel("创建本地分支", this);
-    title->setStyleSheet("font-size: 20px; font-weight: 700; color: #111827;");
+    title->setProperty("role", QStringLiteral("pageTitle"));
     layout->addWidget(title);
 
     auto *description = new QLabel(
         "先选择真实的起点分支，再填写新分支名称。名称中的 / 会形成层级。",
         this);
     description->setWordWrap(true);
-    description->setStyleSheet("color: #4B5563;");
+    description->setProperty("role", QStringLiteral("bodyText"));
     layout->addWidget(description);
 
     auto *startLabel = new QLabel("起点分支", this);
-    startLabel->setStyleSheet("font-weight: 600; color: #111827;");
+    startLabel->setProperty("role", QStringLiteral("panelLabel"));
     layout->addWidget(startLabel);
 
     m_startTree = new BranchTreeWidget(this);
@@ -57,17 +58,14 @@ CreateBranchDialog::CreateBranchDialog(
     layout->addWidget(m_startTree, 1);
 
     auto *nameLabel = new QLabel("新分支名称", this);
-    nameLabel->setStyleSheet("font-weight: 600; color: #111827;");
+    nameLabel->setProperty("role", QStringLiteral("panelLabel"));
     layout->addWidget(nameLabel);
 
     m_nameEdit = new QLineEdit(this);
     m_nameEdit->setObjectName("createBranchNameEdit");
     m_nameEdit->setPlaceholderText("例如：feature/platform/new-ui");
     m_nameEdit->setClearButtonEnabled(true);
-    m_nameEdit->setStyleSheet(
-        "QLineEdit { min-height: 38px; padding: 0 10px; border: 1px solid #D1D5DB; "
-        "border-radius: 7px; color: #111827; background: #FFFFFF; }"
-        "QLineEdit:focus { border-color: #2563EB; }");
+    m_nameEdit->setMinimumHeight(38);
     layout->addWidget(m_nameEdit);
 
     m_validationLabel = new QLabel(this);
@@ -82,24 +80,24 @@ CreateBranchDialog::CreateBranchDialog(
     layout->addWidget(m_switchCheck);
 
     auto *previewFrame = new QFrame(this);
-    previewFrame->setStyleSheet(
-        "QFrame { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; }");
+    previewFrame->setProperty("role", QStringLiteral("subtlePanel"));
+    previewFrame->setAttribute(Qt::WA_StyledBackground, true);
     auto *previewLayout = new QVBoxLayout(previewFrame);
     previewLayout->setContentsMargins(14, 12, 14, 12);
     auto *previewTitle = new QLabel("创建预览", previewFrame);
-    previewTitle->setStyleSheet("font-weight: 600; color: #334155; border: none;");
+    previewTitle->setProperty("role", QStringLiteral("panelLabel"));
     previewLayout->addWidget(previewTitle);
     m_previewLabel = new QLabel(previewFrame);
     m_previewLabel->setObjectName("createBranchPreview");
     m_previewLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_previewLabel->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    m_previewLabel->setStyleSheet("color: #0F172A; border: none;");
+    m_previewLabel->setProperty("role", QStringLiteral("bodyText"));
     previewLayout->addWidget(m_previewLabel);
     layout->addWidget(previewFrame);
 
     m_busyLabel = new QLabel("正在通过 Git 创建分支，请稍候…", this);
     m_busyLabel->setObjectName("createBranchBusyLabel");
-    m_busyLabel->setStyleSheet("color: #475569;");
+    m_busyLabel->setProperty("role", QStringLiteral("bodyText"));
     m_busyLabel->hide();
     layout->addWidget(m_busyLabel);
 
@@ -159,7 +157,7 @@ void CreateBranchDialog::scheduleValidation() {
     }
 
     m_validationLabel->setText("正在通过 Git 检查名称…");
-    m_validationLabel->setStyleSheet("color: #64748B;");
+    m_validationLabel->setProperty("role", QStringLiteral("bodyText"));
     updateCreateState();
     m_validationTimer->start();
 }
@@ -180,7 +178,9 @@ void CreateBranchDialog::validateBranchName() {
             guardedDialog->m_nameValid = result.success;
             if (result.success) {
                 guardedDialog->m_validationLabel->setText("名称可用");
-                guardedDialog->m_validationLabel->setStyleSheet("color: #15803D;");
+                guardedDialog->m_validationLabel->setProperty("role", QStringLiteral("validation"));
+                guardedDialog->m_validationLabel->setProperty("state", QStringLiteral("ok"));
+                Theme::restyle(guardedDialog->m_validationLabel);
             } else {
                 guardedDialog->showValidationError(
                     "分支名称格式无效。\nGit 校验：" + result.error.trimmed());
@@ -316,5 +316,7 @@ void CreateBranchDialog::setBusy(bool busy) {
 
 void CreateBranchDialog::showValidationError(const QString &error) {
     m_validationLabel->setText(error);
-    m_validationLabel->setStyleSheet("color: #B91C1C;");
+    m_validationLabel->setProperty("role", QStringLiteral("validation"));
+    m_validationLabel->setProperty("state", QStringLiteral("danger"));
+    Theme::restyle(m_validationLabel);
 }

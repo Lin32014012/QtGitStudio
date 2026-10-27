@@ -1,5 +1,7 @@
 #pragma once
 #include <QString>
+#include <QStyle>
+#include <QWidget>
 
 // v4-P6-26 UI refresh: single source of truth for the visual language.
 // Values mirror sketches/003-split-workbench (the chosen direction).
@@ -62,6 +64,15 @@ inline QString iconTintFor(const QString &accent) {
     if (accent == QStringLiteral("#059669")) return kSuccessTint;
     if (accent == QStringLiteral("#7C3AED")) return kVioletTint;
     return kAccentTint;
+}
+
+// QSS does not observe dynamic-property writes: repolish after changing
+// one, or the new selector never applies.
+inline void restyle(QWidget *widget) {
+    if (!widget) return;
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
 }
 
 }  // namespace Theme

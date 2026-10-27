@@ -345,6 +345,93 @@ QTextEdit[role="diffView"], QPlainTextEdit[role="diffView"] {
     font-size: 12px;
 }
 
+/* ---------------- small parts (v4-P6-26) ---------------- */
+QLabel[role="dot"] {
+    background: #CBD2DC;
+    border: none;
+    border-radius: 3px;
+}
+
+QLabel[role="dot"][state="ok"] {
+    background: #10B981;
+}
+
+QLabel[role="dot"][state="idle"] {
+    background: #CBD2DC;
+}
+
+QLabel[role="dot"][state="danger"] {
+    background: #DC2626;
+}
+
+QFrame[role="iconTile"] {
+    border: none;
+    border-radius: 10px;
+    background: #EFF4FF;
+}
+
+QFrame[role="iconTile"][tint="green"] {
+    background: #F0FDF4;
+}
+
+QFrame[role="iconTile"][tint="violet"] {
+    background: #F5F3FF;
+}
+
+QLabel[role="rowIcon"] {
+    background: #FFFFFF;
+    border: 1px solid #E1E6EF;
+    border-radius: 7px;
+}
+
+QLabel[role="rowName"] {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #171A1F;
+    border: none;
+    background: transparent;
+}
+
+QFrame[role="subtlePanel"] {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+}
+
+QLabel[role="validation"][state="ok"] {
+    color: #15803D;
+}
+
+QLabel[role="validation"][state="danger"] {
+    color: #B91C1C;
+}
+
+/* The welcome rail scrolls without chrome of its own. */
+QScrollArea#projectScroll,
+QScrollArea#projectScroll > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+
+QFrame#recentContainer {
+    background: transparent;
+    border: none;
+}
+
+QWidget#welcomeMain {
+    background: #EEF0F4;
+}
+
+QFrame#guideStep {
+    background: #F7F9FC;
+    border: 1px solid #EEF1F6;
+    border-radius: 9px;
+}
+
+QDialog {
+    background: #FFFFFF;
+}
+
 /* ---------------- base ---------------- */
 QWidget {
     font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", sans-serif;
