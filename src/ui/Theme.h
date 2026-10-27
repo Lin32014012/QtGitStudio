@@ -1,5 +1,7 @@
 #pragma once
 #include <QString>
+#include <QApplication>
+#include <QIcon>
 #include <QStyle>
 #include <QWidget>
 
@@ -64,6 +66,16 @@ inline QString iconTintFor(const QString &accent) {
     if (accent == QStringLiteral("#059669")) return kSuccessTint;
     if (accent == QStringLiteral("#7C3AED")) return kVioletTint;
     return kAccentTint;
+}
+
+// Loads a themed icon from the resource bundle, falling back to the
+// platform standard icon. The resource bundle is attached to the
+// application target, not to libraries or test binaries, so a missing
+// resource must degrade to a usable icon instead of an empty one.
+inline QIcon icon(const QString &fileName, QStyle::StandardPixmap fallback) {
+    const QIcon themed(QStringLiteral(":/icons/") + fileName);
+    if (!themed.isNull()) return themed;
+    return QApplication::style()->standardIcon(fallback);
 }
 
 // QSS does not observe dynamic-property writes: repolish after changing

@@ -7,6 +7,12 @@
         <file alias="QtGitStudio-64.png">icons/QtGitStudio-64.png</file>
         <file alias="QtGitStudio-128.png">icons/QtGitStudio-128.png</file>
         <file alias="QtGitStudio-256.png">icons/QtGitStudio-256.png</file>
+        <file alias="open-repo.svg">icons/open-repo.svg</file>
+        <file alias="init-repo.svg">icons/init-repo.svg</file>
+        <file alias="clone-repo.svg">icons/clone-repo.svg</file>
+        <file alias="repo.svg">icons/repo.svg</file>
+        <file alias="file.svg">icons/file.svg</file>
+        <file alias="back.svg">icons/back.svg</file>
     </qresource>
     <qresource prefix="/theme">
         <file alias="theme.qss">theme.qss</file>

@@ -149,7 +149,7 @@ add_library(QtGitStudio_lib STATIC
 # path so headers keep their short #include "Name.h" form.
 target_include_directories(QtGitStudio_lib PUBLIC
     src/core src/parsers src/services src/github src/platform src/ui)
-target_link_libraries(QtGitStudio_lib PUBLIC Qt6::Widgets Qt6::Network)
+target_link_libraries(QtGitStudio_lib PUBLIC Qt6::Widgets Qt6::Network Qt6::Svg)
 # v4-P6-18 P1-1: Windows Credential Manager (CredWriteW/CredReadW).
 # Single source of truth for the version: project(... VERSION x.y.z).
 target_compile_definitions(QtGitStudio_lib PUBLIC

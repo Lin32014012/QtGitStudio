@@ -1,4 +1,5 @@
 #include "CommitHistoryWidget.h"
+#include "Theme.h"
 #include "GitCommitGraphService.h"
 #include "GitCommitDiffService.h"
 #include "DiffViewerWidget.h"
@@ -379,7 +380,8 @@ void CommitHistoryWidget::onCommitSelected() {
                                          : QStringLiteral("?")));
         entries.append({path, status});
     }
-    const QIcon fileIcon = style()->standardIcon(QStyle::SP_FileIcon);
+    const QIcon fileIcon =
+        Theme::icon(QStringLiteral("file.svg"), QStyle::SP_FileIcon);
     for (const FileEntry &e : entries) {
         auto *item = new QListWidgetItem(
             fileIcon,

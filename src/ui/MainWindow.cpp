@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "Theme.h"
 #include "ActionButtonFeedback.h"
 #include "BranchSwitchErrorDialog.h"
 #include "BranchTreeWidget.h"
@@ -140,7 +141,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_goHomeButton->setToolTip("返回欢迎页，当前项目不会被关闭。");
     // v4-P6-12: no Unicode arrow glyph - standard pixmap icon.
     m_goHomeButton->setIcon(
-        style()->standardIcon(QStyle::SP_ArrowBack));
+        Theme::icon(QStringLiteral("back.svg"), QStyle::SP_ArrowBack));
     m_goHomeButton->setIconSize(QSize(16, 16));
     ActionButtonFeedback::configure(
         m_goHomeButton,
