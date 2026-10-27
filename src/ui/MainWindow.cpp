@@ -317,10 +317,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_branchSearchEdit->setPlaceholderText("搜索分支…");
     m_branchSearchEdit->setClearButtonEnabled(true);
     m_branchSearchEdit->setMaximumWidth(260);
-    m_branchSearchEdit->setStyleSheet(
-        "QLineEdit { padding: 7px 10px; border: 1px solid #D1D5DB; "
-        "border-radius: 7px; color: #111827; background: #FFFFFF; }"
-        "QLineEdit:focus { border-color: #2563EB; }");
     branchTitleLayout->addWidget(m_branchSearchEdit);
     contentLayout->addLayout(branchTitleLayout);
 
@@ -348,11 +344,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     auto *openGraphButton =
         new QPushButton(QStringLiteral("查看关系图"), m_branchTab);
     openGraphButton->setObjectName("openGraphViewerButton");
-    openGraphButton->setStyleSheet(
-        "QPushButton { background: #FFFFFF; color: #1F2937;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 3px 10px; font-size: 12px; }"
-        "QPushButton:hover { background: #F3F4F6; }");
+    openGraphButton->setProperty("role", QStringLiteral("ghost"));
     m_branchTab->setCornerWidget(openGraphButton, Qt::TopRightCorner);
     connect(openGraphButton, &QPushButton::clicked, this, [this]() {
         if (m_currentProjectPath.isEmpty()) {
@@ -572,14 +564,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_conflictBanner = new QFrame(changesPage);
     m_conflictBanner->setObjectName(QStringLiteral("conflictSummaryBanner"));
     m_conflictBanner->setFrameShape(QFrame::StyledPanel);
-    m_conflictBanner->setStyleSheet(
-        QStringLiteral("QFrame { background: #FEF2F2; border: 1px solid #FCA5A5;"
-                       " border-radius: 6px; padding: 4px; }"));
+    m_conflictBanner->setProperty("role", QStringLiteral("bannerDanger"));
+    m_conflictBanner->setAttribute(Qt::WA_StyledBackground, true);
     auto *conflictBannerLayout = new QHBoxLayout(m_conflictBanner);
     conflictBannerLayout->setContentsMargins(8, 4, 8, 4);
     m_conflictSummaryLabel = new QLabel(m_conflictBanner);
     m_conflictSummaryLabel->setObjectName(QStringLiteral("conflictSummaryLabel"));
-    m_conflictSummaryLabel->setStyleSheet(QStringLiteral("color: #991B1B; font-weight: 600;"));
+    m_conflictSummaryLabel->setProperty("role", QStringLiteral("bodyText"));
+    m_conflictSummaryLabel->setProperty("state", QStringLiteral("danger"));
     conflictBannerLayout->addWidget(m_conflictSummaryLabel);
     conflictBannerLayout->addStretch();
     m_resolveConflictsButton = new QPushButton(QStringLiteral("解决冲突"), m_conflictBanner);
@@ -592,7 +584,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_changesTree = new QTreeWidget(changesPage);
     m_changesTree->setObjectName("changesTree");
     m_changesTree->setHeaderLabels({"状态", "文件"});
-    m_changesTree->setStyleSheet("QTreeWidget { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px; background: #FFFFFF; color: #111827; } QTreeWidget::item { padding: 8px; border-radius: 4px; } QTreeWidget::item:selected { background: #DBEAFE; color: #111827; } QTreeWidget::item:selected:!active { background: #E5E7EB; color: #111827; } QTreeWidget::item:hover { background: #F3F4F6; color: #111827; }");
     m_changesTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_changesTree->setSelectionMode(QAbstractItemView::SingleSelection);
     m_changesTree->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -643,13 +634,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     contentLayout->addLayout(stageLayout);
     
     QLabel *commitLabel = new QLabel("提交说明：", this);
-    commitLabel->setStyleSheet("font-size: 14px; color: #333;");
+    commitLabel->setProperty("role", QStringLiteral("bodyText"));
     contentLayout->addWidget(commitLabel);
     
     m_commitMessageEdit = new QLineEdit(this);
     m_commitMessageEdit->setObjectName("commitMessageEdit");
     m_commitMessageEdit->setPlaceholderText("请输入提交说明...");
-    m_commitMessageEdit->setStyleSheet("padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px;");
     contentLayout->addWidget(m_commitMessageEdit);
     // v4-P6-21R1 ISSUE-12A: typing a message must re-evaluate the
     // commit button (it is disabled while the message is empty).
@@ -670,7 +660,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_errorDisplay->setReadOnly(true);
     m_errorDisplay->setPlaceholderText("错误信息将显示在这里...");
     m_errorDisplay->setMaximumHeight(80);
-    m_errorDisplay->setStyleSheet("background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 8px;");
+    m_errorDisplay->setProperty("role", QStringLiteral("errorBox"));
     contentLayout->addWidget(m_errorDisplay);
     
     m_stack->addWidget(m_workspaceWidget);

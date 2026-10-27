@@ -117,6 +117,49 @@ QLabel[role="statusPill"] {
     padding: 1px 7px;
 }
 
+/* ---------------- banners & boxes (v4-P6-26) ---------------- */
+QFrame[role="bannerDanger"] {
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    border-radius: 8px;
+}
+
+QTextEdit[role="errorBox"], QPlainTextEdit[role="errorBox"] {
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 8px;
+    padding: 8px;
+    color: #92400E;
+}
+
+QLabel[role="pageTitle"] {
+    font-size: 20px;
+    font-weight: 700;
+    color: #171A1F;
+}
+
+QToolButton[role="toolbar"] {
+    background: #1F2937;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QToolButton[role="toolbar"]:hover {
+    background: #374151;
+}
+
+QToolButton[role="toolbar"]:disabled {
+    background: #9CA3AF;
+}
+
+QToolButton[role="toolbar"]::menu-indicator {
+    image: none;
+}
+
 /* ---------------- base ---------------- */
 QWidget {
     font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", sans-serif;
