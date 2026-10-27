@@ -16,3 +16,6 @@ compile_commands.json
 *.lib
 .DS_Store
 Thumbs.db
+
+# local demo repositories used for screenshots / manual checks
+demo/

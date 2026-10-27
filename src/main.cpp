@@ -1,6 +1,8 @@
 #include <QApplication>
 #include <QIcon>
 #include <QSize>
+#include <QStringList>
+#include <QTimer>
 #include "MainWindow.h"
 
 int main(int argc, char *argv[])
@@ -17,9 +19,40 @@ int main(int argc, char *argv[])
     QApplication::setWindowIcon(applicationIcon);
     QApplication::setQuitOnLastWindowClosed(true);
 
+    // Optional command line: `QtGitStudio --open <repositoryPath>` opens a
+    // repository immediately instead of waiting for the picker. Without the
+    // flag the app behaves exactly as before (welcome page first).
+    QString openPath;
+    const QStringList args = QCoreApplication::arguments();
+    for (int i = 1; i < args.size(); ++i) {
+        if (args.at(i) == QStringLiteral("--open") && i + 1 < args.size()) {
+            openPath = args.at(i + 1);
+            ++i;
+        }
+    }
+
     MainWindow window;
     window.setWindowIcon(applicationIcon);
     window.show();
+
+    if (!openPath.isEmpty()) {
+        QTimer::singleShot(0, &window, [&window, openPath]() {
+            QMetaObject::invokeMethod(&window, "onProjectSelected",
+                                      Q_ARG(QString, openPath));
+        });
+    }
+
+    // Documentation/screenshot hook: QTGITSTUDIO_AUTO_SLOT=<slotName> invokes
+    // a MainWindow slot once the repository has loaded (used to capture the
+    // commit-graph viewer and the conflict resolver for README images). No
+    // effect when the variable is unset.
+    const QByteArray autoSlot = qgetenv("QTGITSTUDIO_AUTO_SLOT");
+    if (!autoSlot.isEmpty()) {
+        QTimer::singleShot(3000, &window, [&window, autoSlot]() {
+            QMetaObject::invokeMethod(&window, autoSlot.constData(),
+                                      Qt::DirectConnection);
+        });
+    }
 
     return app.exec();
 }
