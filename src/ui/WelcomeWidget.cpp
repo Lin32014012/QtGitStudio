@@ -336,21 +336,20 @@ void WelcomeWidget::buildMainArea() {
     layout->addLayout(heroBox);
 
     // Quick-start tiles: 2 columns, the clone tile spans the full row.
-    const QStyle *st = style();
     auto *openBlock = new ActionBlock(
-        st->standardIcon(QStyle::SP_DirOpenIcon),
+        Theme::icon(QStringLiteral("open-repo.svg"), QStyle::SP_DirOpenIcon),
         QStringLiteral("打开仓库"),
         QStringLiteral("打开本机已有的 Git 仓库，自动读取分支与工作区状态"),
         QStringLiteral("#2563EB"), m_mainArea);
     openBlock->setObjectName("openAction");
     auto *initBlock = new ActionBlock(
-        st->standardIcon(QStyle::SP_FileDialogNewFolder),
+        Theme::icon(QStringLiteral("init-repo.svg"), QStyle::SP_FileDialogNewFolder),
         QStringLiteral("初始化仓库"),
         QStringLiteral("把当前文件夹变成 Git 仓库，并生成第一次提交"),
         QStringLiteral("#059669"), m_mainArea);
     initBlock->setObjectName("initAction");
     auto *cloneBlock = new ActionBlock(
-        st->standardIcon(QStyle::SP_ArrowDown),
+        Theme::icon(QStringLiteral("clone-repo.svg"), QStyle::SP_ArrowDown),
         QStringLiteral("克隆仓库"),
         QStringLiteral("从远程 GitHub 克隆到本地，自动识别默认分支"),
         QStringLiteral("#7C3AED"), m_mainArea);
@@ -475,8 +474,9 @@ QFrame *WelcomeWidget::makeRecentRow(const QString &path) {
 
     auto *iconLabel = new QLabel(row);
     iconLabel->setFixedSize(24, 24);
-    iconLabel->setPixmap(style()->standardIcon(QStyle::SP_DirIcon)
-                             .pixmap(16, 16));
+    iconLabel->setPixmap(
+        Theme::icon(QStringLiteral("repo.svg"), QStyle::SP_DirIcon)
+            .pixmap(16, 16));
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setProperty("role", QStringLiteral("rowIcon"));
     rowLayout->addWidget(iconLabel);
@@ -488,20 +488,25 @@ QFrame *WelcomeWidget::makeRecentRow(const QString &path) {
     nameLabel->setProperty("role", QStringLiteral("rowName"));
     textLayout->addWidget(nameLabel);
 
-    // Secondary line: branch + elided path (monospace, muted).
+    // Secondary line: the path alone, elided from the left because the tail
+    // (nearest the project) carries the meaning - middle elision produced
+    // strings like "C:/Us.ts/tudio/demo" that read as corruption. The
+    // branch keeps its own pill so path elision can never swallow it.
     const QString branch = branchOf(path);
-    QString secondary = branch.isEmpty()
-        ? QFileInfo(path).absolutePath()
-        : QStringLiteral("%1 \u00B7 %2").arg(
-              branch, QFileInfo(path).absolutePath());
     auto *secondaryLabel = new QLabel(
         QFontMetrics(nameLabel->font())
-            .elidedText(secondary, Qt::ElideMiddle, 170),
+            .elidedText(QFileInfo(path).absolutePath(), Qt::ElideLeft, 165),
         row);
     secondaryLabel->setToolTip(path);
     secondaryLabel->setProperty("role", QStringLiteral("mono"));
     textLayout->addWidget(secondaryLabel);
     rowLayout->addLayout(textLayout, 1);
+
+    if (!branch.isEmpty()) {
+        auto *branchPill = makeLabel(branch, "pillMono", row);
+        branchPill->setToolTip(QStringLiteral("当前分支：%1").arg(branch));
+        rowLayout->addWidget(branchPill, 0, Qt::AlignVCenter);
+    }
 
     // Timestamp and presence dot share one baseline at the row tail.
     const QString opened = lastOpenedText(path);
