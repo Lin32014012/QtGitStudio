@@ -83,6 +83,8 @@ private:
     QWidget *m_mainArea = nullptr;
     QHBoxLayout *m_columnsLayout = nullptr;
     QGridLayout *m_actionGrid = nullptr;
+    QWidget *m_cloneBlock = nullptr;
+    bool m_cloneStacked = false;
     QStringList m_projects;
     int m_shownCount = 0;
     bool m_envAvailable = false;

@@ -363,6 +363,7 @@ void WelcomeWidget::buildMainArea() {
     m_actionGrid->addWidget(openBlock, 0, 0);
     m_actionGrid->addWidget(initBlock, 0, 1);
     m_actionGrid->addWidget(cloneBlock, 1, 0, 1, 2);
+    m_cloneBlock = cloneBlock;
     layout->addLayout(m_actionGrid);
 
     layout->addWidget(buildGuidePanel());
@@ -592,16 +593,18 @@ void WelcomeWidget::resizeEvent(QResizeEvent *event) {
             m_sidePanel->setFixedWidth(296);
         }
     }
-    if (m_actionGrid) {
-        // Re-add the clone tile so its span follows the column count.
-        QLayoutItem *cloneItem = m_actionGrid->itemAtPosition(1, 0);
-        if (cloneItem && cloneItem->widget()) {
-            QWidget *cloneW = cloneItem->widget();
-            m_actionGrid->removeWidget(cloneW);
-            if (w < 760) {
-                m_actionGrid->addWidget(cloneW, 2, 0, 1, 1);
+    if (m_actionGrid && m_cloneBlock) {
+        // Re-add the clone tile so its span follows the column count. It is
+        // tracked by pointer: looking it up by grid position breaks as soon
+        // as a narrow pass moves it to another row.
+        const bool stacked = w < 760;
+        if (m_cloneStacked != stacked) {
+            m_cloneStacked = stacked;
+            m_actionGrid->removeWidget(m_cloneBlock);
+            if (stacked) {
+                m_actionGrid->addWidget(m_cloneBlock, 2, 0, 1, 1);
             } else {
-                m_actionGrid->addWidget(cloneW, 1, 0, 1, 2);
+                m_actionGrid->addWidget(m_cloneBlock, 1, 0, 1, 2);
             }
         }
     }
