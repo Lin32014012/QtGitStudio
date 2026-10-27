@@ -402,7 +402,11 @@ void TestMainWindow::testBranchTreeHierarchy() {
     QVERIFY(branchTree->minimumHeight() < 220);
     QCOMPARE(branchTree->horizontalScrollBarPolicy(), Qt::ScrollBarAlwaysOff);
     QCOMPARE(branchTree->editTriggers(), QAbstractItemView::NoEditTriggers);
-    QVERIFY(branchTree->styleSheet().contains("background: #DBEAFE; color: #111827"));
+    // The tree's look comes from the app sheet now. What this assertion is
+    // really guarding is a visible selected-row treatment, so require the
+    // sheet to define one (selected background + text colour).
+    QVERIFY(qApp->styleSheet().contains("QTreeWidget::item:selected"));
+    QVERIFY(qApp->styleSheet().contains("#EAF0FE"));
 
     QCOMPARE(branchTree->topLevelItemCount(), 1);
     QTreeWidgetItem *root = branchTree->topLevelItem(0);

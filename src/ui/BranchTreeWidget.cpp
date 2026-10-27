@@ -94,13 +94,6 @@ BranchTreeWidget::BranchTreeWidget(QWidget *parent)
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setUniformRowHeights(true);
     setItemDelegate(new BranchTreeDelegate(this));
-    setStyleSheet(
-        "QTreeWidget { border: 1px solid #D1D5DB; border-radius: 8px; "
-        "padding: 6px 10px; background: #FFFFFF; color: #111827; outline: 0; }"
-        "QTreeWidget::item { padding-left: 2px; border-radius: 5px; color: #111827; }"
-        "QTreeWidget::item:selected { background: #DBEAFE; color: #111827; }"
-        "QTreeWidget::item:selected:!active { background: #E5E7EB; color: #111827; }"
-        "QTreeWidget::item:hover { background: #F3F4F6; color: #111827; }");
 }
 
 void BranchTreeWidget::setBranchData(

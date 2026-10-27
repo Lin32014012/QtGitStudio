@@ -396,17 +396,10 @@ BranchRelationWidget::BranchRelationWidget(QWidget *parent) : QWidget(parent) {
     m_searchEdit->setObjectName("relationSearch");
     m_searchEdit->setPlaceholderText(QStringLiteral("搜索提交…"));
     m_searchEdit->setFixedWidth(160);
-    const QString btnStyle =
-        "QPushButton { background: #FFFFFF; color: #1F2937;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 4px 10px; font-size: 12px; }"
-        "QPushButton:hover { background: #F3F4F6; }"
-        "QPushButton:checked { background: #DBEAFE; color: #1D4ED8;"
-        " border-color: #60A5FA; font-weight: 600; }";
     for (QPushButton *b :
          {m_showAllButton, m_recentButton, m_allBranchesButton,
           m_currentBranchOnlyButton}) {
-        b->setStyleSheet(btnStyle);
+        b->setProperty("role", QStringLiteral("ghost"));
     }
     toolRow->addWidget(m_showAllButton);
     toolRow->addWidget(m_recentButton);
@@ -432,10 +425,7 @@ BranchRelationWidget::BranchRelationWidget(QWidget *parent) : QWidget(parent) {
     m_detailLabel = new QLabel(QStringLiteral("点击提交或分支查看详情"), this);
     m_detailLabel->setObjectName("relationDetail");
     m_detailLabel->setWordWrap(true);
-    m_detailLabel->setStyleSheet(
-        "QLabel { background: #FFFFFF; border: 1px solid #E5E7EB;"
-        " border-radius: 8px; padding: 8px; color: #111827;"
-        " font-size: 12px; }");
+    m_detailLabel->setProperty("role", QStringLiteral("monoBox"));
     layout->addWidget(m_detailLabel);
 
     auto rebuild = [this]() { buildScene(); };

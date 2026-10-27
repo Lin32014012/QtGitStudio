@@ -484,19 +484,9 @@ LearningWidget::LearningWidget(QWidget *parent)
     m_topicTree->setHeaderHidden(true);
     m_topicTree->setRootIsDecorated(true);
     m_topicTree->setMinimumWidth(190);
-    m_topicTree->setStyleSheet(
-        "QTreeWidget { border: 1px solid #E5E7EB; border-radius: 8px;"
-        " padding: 4px; background: #FFFFFF; font-size: 13px; }"
-        "QTreeWidget::item { padding: 6px 4px; border-radius: 4px; }"
-        "QTreeWidget::item:selected { background: #DBEAFE;"
-        " color: #111827; }"
-        "QTreeWidget::item:hover { background: #F3F4F6; }");
 
     m_content->setObjectName("learningContent");
     m_content->setOpenExternalLinks(false);
-    m_content->setStyleSheet(
-        "QTextBrowser { border: 1px solid #E5E7EB; border-radius: 8px;"
-        " padding: 12px; background: #FFFFFF; }");
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(m_topicTree);

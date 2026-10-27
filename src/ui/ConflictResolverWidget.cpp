@@ -192,18 +192,17 @@ void ConflictResolverWidget::buildUi() {
 
     m_operationBanner = new QLabel(this);
     m_operationBanner->setObjectName(QStringLiteral("conflictOperationBanner"));
-    m_operationBanner->setStyleSheet(
-        QStringLiteral("font-size: 18px; font-weight: 700; color: #991B1B;"));
+    m_operationBanner->setProperty("role", QStringLiteral("dangerTitle"));
     layout->addWidget(m_operationBanner);
     m_operationHint = new QLabel(this);
     m_operationHint->setObjectName(QStringLiteral("conflictOperationHint"));
     m_operationHint->setWordWrap(true);
-    m_operationHint->setStyleSheet(QStringLiteral("color: #4B5563;"));
+    m_operationHint->setProperty("role", QStringLiteral("bodyText"));
     layout->addWidget(m_operationHint);
 
     m_emptyState = new QLabel(QStringLiteral("✓ 当前仓库没有未解决冲突"), this);
     m_emptyState->setObjectName(QStringLiteral("conflictResolverEmptyState"));
-    m_emptyState->setStyleSheet(QStringLiteral("color: #15803D; padding: 16px;"));
+    m_emptyState->setProperty("role", QStringLiteral("okNote"));
     m_emptyState->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_emptyState);
 
@@ -224,7 +223,7 @@ void ConflictResolverWidget::buildUi() {
         auto *panelLayout = new QVBoxLayout(panel);
         panelLayout->setContentsMargins(0, 0, 0, 0);
         auto *label = new QLabel(title, panel);
-        label->setStyleSheet(QStringLiteral("font-weight: 700; color: #374151;"));
+        label->setProperty("role", QStringLiteral("panelLabel"));
         panelLayout->addWidget(label);
         auto *editor = new NumberedPlainTextEdit(panel);
         editor->setObjectName(name);
@@ -244,7 +243,7 @@ void ConflictResolverWidget::buildUi() {
     resultLayout->setContentsMargins(0, 0, 0, 0);
     auto *resultHeader = new QHBoxLayout();
     auto *resultTitle = new QLabel(QStringLiteral("Result (应用前预览)"), resultPanel);
-    resultTitle->setStyleSheet(QStringLiteral("font-weight: 700; color: #1D4ED8;"));
+    resultTitle->setProperty("role", QStringLiteral("accentLabel"));
     resultHeader->addWidget(resultTitle);
     resultHeader->addStretch();
     m_hunkSelector = new QComboBox(resultPanel);
@@ -256,7 +255,7 @@ void ConflictResolverWidget::buildUi() {
         resultPanel);
     planHint->setObjectName(QStringLiteral("conflictResolutionPlanHint"));
     planHint->setWordWrap(true);
-    planHint->setStyleSheet(QStringLiteral("color: #4B5563;"));
+    planHint->setProperty("role", QStringLiteral("bodyText"));
     resultLayout->addWidget(planHint);
     m_resultEditor = new NumberedPlainTextEdit(resultPanel);
     m_resultEditor->setObjectName(QStringLiteral("conflictResultEditor"));

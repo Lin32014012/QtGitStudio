@@ -9,16 +9,12 @@ DiffViewerWidget::DiffViewerWidget(QWidget *parent)
     : QWidget(parent) {
     m_statusLabel = new QLabel(QStringLiteral("预览"), this);
     m_statusLabel->setObjectName("diffStatusLabel");
-    m_statusLabel->setStyleSheet(
-        "font-size: 13px; font-weight: 600; color: #374151;");
+    m_statusLabel->setProperty("role", QStringLiteral("panelLabel"));
 
     m_textEdit = new QTextEdit(this);
     m_textEdit->setObjectName("diffTextEdit");
     m_textEdit->setReadOnly(true);
-    m_textEdit->setStyleSheet(
-        "QTextEdit { border: 1px solid #e0e0e0; border-radius: 6px;"
-        " font-family: Consolas, 'Courier New', monospace;"
-        " font-size: 12px; background: #F9FAFB; color: #111827; }");
+    m_textEdit->setProperty("role", QStringLiteral("diffView"));
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

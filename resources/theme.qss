@@ -295,6 +295,56 @@ QPushButton[variant]:focus {
     outline: none;
 }
 
+/* ---------------- panels, notes & diff views (v4-P6-26) ---------- */
+QLabel[role="dangerTitle"] {
+    font-size: 18px;
+    font-weight: 700;
+    color: #991B1B;
+}
+
+QLabel[role="panelLabel"] {
+    font-weight: 700;
+    color: #374151;
+}
+
+QLabel[role="accentLabel"] {
+    font-weight: 700;
+    color: #1D4ED8;
+}
+
+QLabel[role="okNote"] {
+    color: #15803D;
+    padding: 16px;
+}
+
+QLabel[role="monoBox"] {
+    background: #FFFFFF;
+    border: 1px solid #E7EAF0;
+    border-radius: 8px;
+    padding: 8px;
+    color: #171A1F;
+    font-family: Consolas, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-size: 12px;
+}
+
+QLabel[role="infoBox"] {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 8px;
+    padding: 8px;
+    color: #1E40AF;
+    font-size: 12px;
+}
+
+QTextEdit[role="diffView"], QPlainTextEdit[role="diffView"] {
+    border: 1px solid #E7EAF0;
+    border-radius: 8px;
+    background: #F9FAFB;
+    color: #171A1F;
+    font-family: Consolas, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-size: 12px;
+}
+
 /* ---------------- base ---------------- */
 QWidget {
     font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", sans-serif;
@@ -523,6 +573,12 @@ QPushButton[role="ghost"]:hover {
     background: #F2F4F8;
     border-color: #E7EAF0;
     color: #171A1F;
+}
+
+QPushButton[role="ghost"]:checked {
+    background: #EAF0FE;
+    border-color: #BFDBFE;
+    color: #1D4ED8;
 }
 
 QPushButton[role="danger"] {

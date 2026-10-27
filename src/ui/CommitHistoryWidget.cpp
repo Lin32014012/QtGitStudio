@@ -31,11 +31,7 @@ CommitHistoryWidget::CommitHistoryWidget(QWidget *parent) : QWidget(parent) {
     auto *toolRow = new QHBoxLayout();
     auto *refreshButton = new QPushButton(QStringLiteral("刷新"), this);
     refreshButton->setObjectName("historyRefreshButton");
-    refreshButton->setStyleSheet(
-        "QPushButton { background: #F3F4F6; color: #374151;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 4px 12px; font-size: 12px; }"
-        "QPushButton:hover { background: #E5E7EB; }");
+    refreshButton->setProperty("role", QStringLiteral("secondary"));
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setObjectName("historySearch");
     m_searchEdit->setPlaceholderText(
@@ -47,11 +43,7 @@ CommitHistoryWidget::CommitHistoryWidget(QWidget *parent) : QWidget(parent) {
         new QPushButton(QStringLiteral("复制提交信息"), this);
     copyMsgButton->setObjectName("historyCopyMessage");
     for (QPushButton *b : {copyHashButton, copyMsgButton}) {
-        b->setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #1F2937;"
-            " border: 1px solid #D1D5DB; border-radius: 6px;"
-            " padding: 4px 10px; font-size: 12px; }"
-            "QPushButton:hover { background: #F3F4F6; }");
+        b->setProperty("role", QStringLiteral("ghost"));
     }
     toolRow->addWidget(refreshButton);
     toolRow->addWidget(m_searchEdit, 1);
@@ -93,21 +85,6 @@ CommitHistoryWidget::CommitHistoryWidget(QWidget *parent) : QWidget(parent) {
     m_commitTree->setMinimumHeight(220);  // v4-P6-20: history must stay readable
     // v4-P6-16: soft light-blue selection (was a deep blue that hurt
     // readability); distinct hover / selected / normal states.
-    m_commitTree->setStyleSheet(
-        "QTreeWidget { border: 1px solid #E5E7EB; border-radius: 8px;"
-        " background: #FFFFFF; color: #1F2937;"
-        " selection-background-color: #EAF3FF;"
-        " selection-color: #111827;"
-        " alternate-background-color: #FAFBFC; }"
-        "QTreeWidget::item { padding: 7px 6px; border-radius: 4px; }"
-        "QTreeWidget::item:hover { background: #F3F7FC; }"
-        "QTreeWidget::item:selected { background: #EAF3FF;"
-        " color: #111827; }"
-        "QTreeWidget::item:selected:!active { background: #F0F4F9;"
-        " color: #111827; }"
-        "QHeaderView::section { background: #F8FAFC; color: #4B5563;"
-        " border: none; border-bottom: 1px solid #E5E7EB;"
-        " padding: 6px 8px; font-weight: 600; }");
     splitter->addWidget(m_commitTree);
 
     // Middle: detail + changed files.
@@ -118,10 +95,7 @@ CommitHistoryWidget::CommitHistoryWidget(QWidget *parent) : QWidget(parent) {
     m_detailLabel = new QLabel(QStringLiteral("选择提交查看详情"), middle);
     m_detailLabel->setObjectName("historyDetail");
     m_detailLabel->setWordWrap(true);
-    m_detailLabel->setStyleSheet(
-        "QLabel { background: #FFFFFF; border: 1px solid #E5E7EB;"
-        " border-radius: 8px; padding: 8px; color: #111827;"
-        " font-family: Consolas, monospace; font-size: 12px; }");
+    m_detailLabel->setProperty("role", QStringLiteral("monoBox"));
     middleLayout->addWidget(m_detailLabel, 1);
     m_fileList = new QListWidget(middle);
     m_fileList->setObjectName("historyFileList");
@@ -135,18 +109,12 @@ CommitHistoryWidget::CommitHistoryWidget(QWidget *parent) : QWidget(parent) {
     lowerLayout->setSpacing(4);
     auto *diffHeader = new QHBoxLayout();
     auto *diffTitle = new QLabel(QStringLiteral("Diff 预览"), lower);
-    diffTitle->setStyleSheet(
-        "font-size: 13px; font-weight: 600; color: #374151;");
+    diffTitle->setProperty("role", QStringLiteral("panelLabel"));
     m_enlargeButton =
         new QPushButton(QStringLiteral("放大预览"), lower);
     m_enlargeButton->setObjectName("historyEnlargeDiff");
     m_enlargeButton->setEnabled(false);
-    m_enlargeButton->setStyleSheet(
-        "QPushButton { background: #2563EB; color: white;"
-        " border: none; border-radius: 6px; padding: 4px 12px;"
-        " font-size: 12px; }"
-        "QPushButton:hover { background: #1D4ED8; }"
-        "QPushButton:disabled { background: #9CA3AF; }");
+    m_enlargeButton->setProperty("role", QStringLiteral("primary"));
     diffHeader->addWidget(diffTitle);
     diffHeader->addStretch();
     diffHeader->addWidget(m_enlargeButton);

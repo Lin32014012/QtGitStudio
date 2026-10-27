@@ -170,16 +170,10 @@ CommitGraphWidget::CommitGraphWidget(QWidget *parent)
 
     m_detailLabel->setObjectName("commitGraphDetail");
     m_detailLabel->setWordWrap(true);
-    m_detailLabel->setStyleSheet(
-        "QLabel { background: #FFFFFF; border: 1px solid #E5E7EB;"
-        " border-radius: 8px; padding: 10px; color: #111827;"
-        " font-family: Consolas, monospace; font-size: 12px; }");
+    m_detailLabel->setProperty("role", QStringLiteral("monoBox"));
     m_filesLabel->setObjectName("commitGraphFiles");
     m_filesLabel->setWordWrap(true);
-    m_filesLabel->setStyleSheet(
-        "QLabel { background: #EFF6FF; border: 1px solid #BFDBFE;"
-        " border-radius: 8px; padding: 8px; color: #1E40AF;"
-        " font-size: 12px; }");
+    m_filesLabel->setProperty("role", QStringLiteral("infoBox"));
     m_filesLabel->setMinimumHeight(36);
 
     // v4-P6-11: graph toolbar - 适应窗口 / 重置视图 / 查看全部.
@@ -191,12 +185,7 @@ CommitGraphWidget::CommitGraphWidget(QWidget *parent)
     m_showAllButton->setObjectName("graphShowAll");
     for (QPushButton *b : {m_fitWindowButton, m_resetViewButton,
                            m_showAllButton}) {
-        b->setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #1F2937;"
-            " border: 1px solid #D1D5DB; border-radius: 6px;"
-            " padding: 4px 12px; font-size: 12px; }"
-            "QPushButton:hover { background: #F3F4F6; }"
-            "QPushButton:pressed { background: #E5E7EB; }");
+        b->setProperty("role", QStringLiteral("ghost"));
     }
     auto *toolRow = new QHBoxLayout();
     toolRow->setSpacing(6);
