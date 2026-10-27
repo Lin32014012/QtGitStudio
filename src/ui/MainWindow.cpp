@@ -70,6 +70,15 @@
 #include <algorithm>
 
 namespace {
+
+// QSS does not watch dynamic properties, so a state flip needs an explicit
+// repolish for the new selector to take effect.
+void restyle(QWidget *w) {
+    if (!w) return;
+    w->style()->unpolish(w);
+    w->style()->polish(w);
+    w->update();
+}
 QString workspaceRiskText(const GitBranchService::WorkspaceStatus &status) {
     if (!status.success) {
         return "切换前无法读取工作区状态，将由 Git 直接判断是否可以安全切换。";
@@ -141,7 +150,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     headerLayout->addWidget(m_goHomeButton);
     
     m_versionLabel = new QLabel("QtGitStudio " + version(), this);
-    m_versionLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #333;");
+    m_versionLabel->setProperty("role", QStringLiteral("version"));
     headerLayout->addWidget(m_versionLabel);
     headerLayout->addStretch();
     
@@ -177,14 +186,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // v4-P6-11/12/13: same sizing family as the other header buttons
     // (padding 9px 14px / radius 6px / 14px) with a soft green
     // semantic; full hover/pressed/disabled states.
-    m_learnButton->setStyleSheet(
-        "QPushButton { background: #F0FDF4; color: #15803D;"
-        " border: 1px solid #BBF7D0; border-radius: 6px;"
-        " padding: 9px 14px; font-size: 14px; font-weight: 600; }"
-        "QPushButton:hover { background: #DCFCE7; border-color: #86EFAC; }"
-        "QPushButton:pressed { background: #BBF7D0; }"
-        "QPushButton:disabled { background: #F3F4F6; color: #9CA3AF;"
-        " border-color: #E5E7EB; }");
+    m_learnButton->setProperty("role", QStringLiteral("learn"));
     headerLayout->addWidget(m_learnButton);
     workspaceLayout->addLayout(headerLayout);
 
@@ -211,7 +213,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_statusCard = new QFrame(this);
     m_statusCard->setObjectName("statusCard");
     m_statusCard->setFrameShape(QFrame::StyledPanel);
-    m_statusCard->setStyleSheet("QFrame { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px; }");
+    m_statusCard->setProperty("role", QStringLiteral("card"));
+    m_statusCard->setAttribute(Qt::WA_StyledBackground, true);
     auto *statusLayout = new QGridLayout(m_statusCard);
     statusLayout->setContentsMargins(10, 8, 10, 8);
     statusLayout->setHorizontalSpacing(24);
@@ -224,23 +227,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_projectLabel = new QLabel("当前项目：(未选择)", this);
     m_projectLabel->setObjectName("projectLabel");
     m_projectLabel->setWordWrap(true);
-    m_projectLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #333;");
+    m_projectLabel->setProperty("role", QStringLiteral("cardTitle"));
     statusLayout->addWidget(m_projectLabel, 0, 0);
 
     m_gitStatusLabel = new QLabel("Git状态：--", this);
     m_gitStatusLabel->setWordWrap(true);
-    m_gitStatusLabel->setStyleSheet("font-size: 13px; color: #666;");
+    m_gitStatusLabel->setProperty("role", QStringLiteral("bodyText"));
     statusLayout->addWidget(m_gitStatusLabel, 0, 1);
 
     m_branchLabel = new QLabel("当前分支：(未选择)", this);
     m_branchLabel->setObjectName("branchLabel");
     m_branchLabel->setWordWrap(true);
-    m_branchLabel->setStyleSheet("font-size: 13px; color: #666;");
+    m_branchLabel->setProperty("role", QStringLiteral("bodyText"));
     statusLayout->addWidget(m_branchLabel, 1, 0);
 
     m_fileCountLabel = new QLabel("文件变化：0 个文件需要处理", this);
     m_fileCountLabel->setWordWrap(true);
-    m_fileCountLabel->setStyleSheet("font-size: 13px; color: #666;");
+    m_fileCountLabel->setProperty("role", QStringLiteral("bodyText"));
     statusLayout->addWidget(m_fileCountLabel, 1, 1);
 
     contentLayout->addWidget(m_statusCard);
@@ -248,18 +251,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // v4-P1-2 Remote area.
     m_remoteCard = new QFrame(this);
     m_remoteCard->setObjectName("remoteCard");
-    m_remoteCard->setStyleSheet(
-        "QFrame#remoteCard { border: 1px solid #e5e7eb; border-radius: 8px;"
-        " background: #FFFFFF; padding: 4px; }");
+    m_remoteCard->setProperty("role", QStringLiteral("card"));
+    m_remoteCard->setAttribute(Qt::WA_StyledBackground, true);
     auto *remoteLayout = new QVBoxLayout(m_remoteCard);
     remoteLayout->setContentsMargins(8, 4, 8, 4);
     remoteLayout->setSpacing(2);
     auto *remoteTitle = new QLabel("远程仓库 (Remote)", this);
-    remoteTitle->setStyleSheet("font-size: 14px; font-weight: 600; color: #111827;");
+    remoteTitle->setProperty("role", QStringLiteral("cardTitle"));
     remoteLayout->addWidget(remoteTitle);
     m_remotesLabel = new QLabel("无远程仓库", this);
     m_remotesLabel->setObjectName("remotesLabel");
-    m_remotesLabel->setStyleSheet("font-size: 12px; color: #4B5563;");
+    m_remotesLabel->setProperty("role", QStringLiteral("bodyText"));
     m_remotesLabel->setWordWrap(true);
     remoteLayout->addWidget(m_remotesLabel);
     auto *remoteButtons = new QHBoxLayout();
@@ -293,23 +295,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // Suggestion
     m_suggestionLabel = new QLabel("建议：选择一个项目开始", this);
     m_suggestionLabel->setObjectName("suggestionLabel");
-    m_suggestionLabel->setStyleSheet("font-size: 13px; color: #007bff; padding: 8px; background-color: #e7f3ff; border-radius: 6px;");
+    m_suggestionLabel->setProperty("role", QStringLiteral("hint"));
+    m_suggestionLabel->setWordWrap(true);
     contentLayout->addWidget(m_suggestionLabel);
     
     // Branch area
     // v4-P6-1 Navigation: workspace sections under one "Git Workflow"
     // heading (visual grouping only - no layout/business change).
     auto *workflowHeading = new QLabel("Git 工作流", this);
-    workflowHeading->setStyleSheet(
-        "font-size: 15px; font-weight: bold; color: #1F2937;"
-        " margin-top: 8px; padding: 4px 8px;"
-        " border-left: 4px solid #2563EB; background: #EFF6FF;"
-        " border-radius: 4px;");
+    workflowHeading->setProperty("role", QStringLiteral("sectionHeading"));
     contentLayout->addWidget(workflowHeading);
 
     QHBoxLayout *branchTitleLayout = new QHBoxLayout();
     QLabel *branchAreaLabel = new QLabel("分支列表", this);
-    branchAreaLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 5px;");
+    branchAreaLabel->setProperty("role", QStringLiteral("cardTitle"));
     branchTitleLayout->addWidget(branchAreaLabel);
     branchTitleLayout->addStretch();
 
@@ -442,7 +441,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // (the graph is no longer user-visible).
     auto *graphRow = new QHBoxLayout();
     auto *graphTitle = new QLabel("提交历史", this);
-    graphTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 5px;");
+    graphTitle->setProperty("role", QStringLiteral("cardTitle"));
     m_graphButton = new QPushButton("打开提交历史", this);
     m_graphButton->setObjectName("commitGraphButton");
     m_graphButton->setStyleSheet(
@@ -567,7 +566,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     changesPageLayout->setContentsMargins(0, 0, 0, 0);
     changesPageLayout->setSpacing(6);
     auto *commitAreaLabel = new QLabel("文件变化", changesPage);
-    commitAreaLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 5px;");
+    commitAreaLabel->setProperty("role", QStringLiteral("cardTitle"));
     changesPageLayout->addWidget(commitAreaLabel);
 
     m_conflictBanner = new QFrame(changesPage);
@@ -955,11 +954,9 @@ void MainWindow::onSnapshotChanged() {
     // Update status card
     int fileCount = snap.files.size();
     m_fileCountLabel->setText("文件变化：" + QString::number(fileCount) + " 个文件需要处理");
-    if (fileCount > 0) {
-        m_fileCountLabel->setStyleSheet("font-size: 14px; color: #ffc107;");
-    } else {
-        m_fileCountLabel->setStyleSheet("font-size: 14px; color: #28a745;");
-    }
+    m_fileCountLabel->setProperty(
+        "state", fileCount > 0 ? QStringLiteral("warn") : QStringLiteral("ok"));
+    restyle(m_fileCountLabel);
     
     // Update changes tree with colors
     m_changesTree->clear();
@@ -1008,23 +1005,20 @@ void MainWindow::onSnapshotChanged() {
     // (committed, working tree has no changes).
     if (fileCount > 0) {
         m_suggestionLabel->setText("建议：审查变更并提交");
-        m_suggestionLabel->setStyleSheet(
-            "font-size: 13px; color: #007bff; padding: 8px;"
-            " background-color: #e7f3ff; border-radius: 6px;");
+        m_suggestionLabel->setProperty("state", QStringLiteral("info"));
+        restyle(m_suggestionLabel);
     } else if (m_controller->repoState()
                == GitController::RepoState::EmptyRepository) {
         // An unborn repository is the only empty state.  Detached HEAD has
         // no branch name, but it still resolves to a commit and is clean.
         m_suggestionLabel->setText(
             "建议：仓库为空，完成第一次 Commit 后这里将显示变更。");
-        m_suggestionLabel->setStyleSheet(
-            "font-size: 13px; color: #b45309; padding: 8px;"
-            " background-color: #fef3c7; border-radius: 6px;");
+        m_suggestionLabel->setProperty("state", QStringLiteral("warn"));
+        restyle(m_suggestionLabel);
     } else {
         m_suggestionLabel->setText("✓ 工作区干净");
-        m_suggestionLabel->setStyleSheet(
-            "font-size: 13px; color: #15803d; padding: 8px;"
-            " background-color: #dcfce7; border-radius: 6px;");
+        m_suggestionLabel->setProperty("state", QStringLiteral("ok"));
+        restyle(m_suggestionLabel);
         // v4-P6-21 ISSUE-12: the branch tree populates right after the
         // snapshot and its default directory-node selection would
         // overwrite this hint - re-assert it after the branch-tree
@@ -1034,9 +1028,8 @@ void MainWindow::onSnapshotChanged() {
                 && m_controller->repoState()
                        != GitController::RepoState::EmptyRepository) {
                 m_suggestionLabel->setText("✓ 工作区干净");
-                m_suggestionLabel->setStyleSheet(
-                    "font-size: 13px; color: #15803d; padding: 8px;"
-                    " background-color: #dcfce7; border-radius: 6px;");
+                m_suggestionLabel->setProperty("state", QStringLiteral("ok"));
+                restyle(m_suggestionLabel);
             }
         });
     }
@@ -1283,7 +1276,8 @@ void MainWindow::loadProject(
                 m_projectController->addRecentProject(path);
                 m_welcomeWidget->updateRecentProjects(m_projectController->recentProjects());
                 m_gitStatusLabel->setText(QStringLiteral("Git状态：Git 仓库正常"));
-                m_gitStatusLabel->setStyleSheet("font-size: 14px; color: #28a745;");
+                m_gitStatusLabel->setProperty("state", QStringLiteral("ok"));
+                restyle(m_gitStatusLabel);
                 // v4-P6-15: wire the new history + relation widgets.
                 if (m_commitHistory) {
                     m_commitHistory->setRepositoryPath(path);
@@ -1328,7 +1322,8 @@ void MainWindow::loadProject(
         clearRepositorySession();
         m_projectLabel->setText("当前项目：" + QFileInfo(path).fileName());
         m_gitStatusLabel->setText("Git状态：⚠ 未初始化");
-        m_gitStatusLabel->setStyleSheet("font-size: 14px; color: #dc3545;");
+        m_gitStatusLabel->setProperty("state", QStringLiteral("danger"));
+        restyle(m_gitStatusLabel);
         m_branchLabel->setText("当前分支：(无)");
         m_fileCountLabel->setText("文件变化：0 个文件需要处理");
         m_suggestionLabel->setText("建议：初始化 Git 仓库");
@@ -2641,7 +2636,8 @@ void MainWindow::onBranchesChanged() {
 void MainWindow::onCurrentBranchChanged() {
     QString current = m_controller->viewModel()->currentBranch();
     m_branchLabel->setText("当前分支：" + current);
-    m_branchLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #333;");
+    m_branchLabel->setProperty("state", QStringLiteral("strong"));
+    restyle(m_branchLabel);
 
     m_branchTree->setCurrentBranch(current, m_pendingBranchSelection);
     m_pendingBranchSelection.clear();
@@ -2723,9 +2719,8 @@ void MainWindow::updateBranchActionState() {
     // selection (directory node etc.) can never hide it.
     if (cleanWorkspace) {
         m_suggestionLabel->setText("✓ 工作区干净");
-        m_suggestionLabel->setStyleSheet(
-            "font-size: 13px; color: #15803d; padding: 8px;"
-            " background-color: #dcfce7; border-radius: 6px;");
+        m_suggestionLabel->setProperty("state", QStringLiteral("ok"));
+        restyle(m_suggestionLabel);
     }
 
 }
@@ -2954,7 +2949,8 @@ void MainWindow::onCommitFinished() {
     m_errorDisplay->clear();
     m_errorDisplay->hide();
     m_suggestionLabel->setText("建议：提交成功！");
-    m_suggestionLabel->setStyleSheet("font-size: 13px; color: #28a745; padding: 8px; background-color: #d4edda; border-radius: 6px;");
+    m_suggestionLabel->setProperty("state", QStringLiteral("ok"));
+    restyle(m_suggestionLabel);
 }
 
 void MainWindow::onCommitError() {
