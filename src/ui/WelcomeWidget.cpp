@@ -6,101 +6,41 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QScrollArea>
-
-// --- ActionBlock --------------------------------------------------------
-
-ActionBlock::ActionBlock(const QIcon &icon, const QString &title,
-                         const QString &hint, const QString &accent,
-                         QWidget *parent)
-    : QFrame(parent)
-    , m_accent(accent) {
-    setObjectName("actionBlock");
-    setCursor(Qt::PointingHandCursor);
-    setStyleSheet(
-        "QFrame#actionBlock { background: #FFFFFF;"
-        " border: 1.5px solid #E5E7EB; border-radius: 10px; }");
-
-    auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(14, 12, 14, 12);
-    layout->setSpacing(12);
-
-    // v4-P6-16: icon sits in a soft rounded tile so the block reads as
-    // a proper function card, not plain stacked text.
-    auto *iconTile = new QFrame(this);
-    iconTile->setStyleSheet(
-        QStringLiteral("QFrame { background: %1; border-radius: 8px; }")
-            .arg(accent + QStringLiteral("1A")));
-    iconTile->setFixedSize(38, 38);
-    auto *tileLayout = new QVBoxLayout(iconTile);
-    tileLayout->setContentsMargins(0, 0, 0, 0);
-    auto *iconLabel = new QLabel(iconTile);
-    iconLabel->setPixmap(icon.pixmap(20, 20));
-    iconLabel->setAlignment(Qt::AlignCenter);
-    tileLayout->addWidget(iconLabel);
-    layout->addWidget(iconTile, 0, Qt::AlignVCenter);
-
-    auto *textLayout = new QVBoxLayout();
-    textLayout->setSpacing(2);
-    m_titleLabel = new QLabel(title, this);
-    m_titleLabel->setStyleSheet(
-        "font-size: 14px; font-weight: 600; color: #111827;"
-        " border: none; background: transparent;");
-    textLayout->addWidget(m_titleLabel);
-
-    auto *hintLabel = new QLabel(hint, this);
-    hintLabel->setStyleSheet(
-        "font-size: 12px; color: #6B7280;"
-        " border: none; background: transparent;");
-    textLayout->addWidget(hintLabel);
-
-    layout->addLayout(textLayout, 1);
-}
-
-QString ActionBlock::titleText() const {
-    return m_titleLabel->text();
-}
-
-void ActionBlock::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
-        m_pressed = true;
-        event->accept();
-        return;
-    }
-    QFrame::mousePressEvent(event);
-}
-
-void ActionBlock::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton && m_pressed) {
-        m_pressed = false;
-        if (rect().contains(event->pos())) {
-            emit clicked();
-        }
-        event->accept();
-        return;
-    }
-    QFrame::mouseReleaseEvent(event);
-}
-
-void ActionBlock::enterEvent(QEnterEvent *event) {
-    setStyleSheet(
-        "QFrame#actionBlock { background: #F8FAFF;"
-        " border: 1.5px solid #93C5FD; border-radius: 10px; }");
-    QFrame::enterEvent(event);
-}
-
-void ActionBlock::leaveEvent(QEvent *event) {
-    setStyleSheet(
-        "QFrame#actionBlock { background: #FFFFFF;"
-        " border: 1.5px solid #E5E7EB; border-radius: 10px; }");
-    QFrame::leaveEvent(event);
-}
-
-// --- WelcomeWidget ------------------------------------------------------
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QResizeEvent>
+#include <functional>
 
 namespace {
-// v4-P6-6: relative "最近打开" time (e.g. "10分钟前"). The
-// recent-projects data structure stores paths only (never modified), so
-// the directory modification time is used as the approximation.
+
+// Rounded status dot as a plain QLabel so the row stays free of nested
+// QFrames (the recent-projects regression counts QFrame children).
+QLabel *makeDot(QWidget *parent, const QString &color, int size = 6) {
+    auto *dot = new QLabel(parent);
+    dot->setFixedSize(size, size);
+    dot->setStyleSheet(QStringLiteral(
+        "QLabel { background: %1; border-radius: %2px; }")
+        .arg(color).arg(size / 2));
+    return dot;
+}
+
+void setDotColor(QLabel *dot, const QString &color) {
+    if (!dot) return;
+    const int size = dot->width() > 0 ? dot->width() : 6;
+    dot->setStyleSheet(QStringLiteral(
+        "QLabel { background: %1; border-radius: %2px; }")
+        .arg(color).arg(size / 2));
+}
+
+QLabel *makeLabel(const QString &text, const char *role, QWidget *parent) {
+    auto *label = new QLabel(text, parent);
+    label->setProperty("role", QString::fromLatin1(role));
+    return label;
+}
+
+// v4-P6-6: relative "最近打开" time (e.g. "10分钟前"). The recent-projects
+// data structure stores paths only (never modified), so the directory
+// modification time is used as the approximation.
 QString lastOpenedText(const QString &projectPath) {
     const QFileInfo info(projectPath);
     if (!info.exists()) return QString();
@@ -137,129 +77,329 @@ QString branchOf(const QString &projectPath) {
     return QString();
 }
 
-QFrame *sectionCard(const QString &title, QWidget *parent) {
-    auto *card = new QFrame(parent);
-    card->setStyleSheet(
-        "QFrame { background: #FFFFFF; border: 1px solid #E5E7EB;"
-        " border-radius: 10px; }");
-    auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(14, 10, 14, 10);
-    layout->setSpacing(6);
-    auto *titleLabel = new QLabel(title, card);
-    titleLabel->setStyleSheet(
-        "font-size: 14px; font-weight: 700; color: #111827;"
-        " border: none; background: transparent;");
-    layout->addWidget(titleLabel);
-    return card;
-}
+// Whole-block click without a nested QPushButton.
+class ClickFilter : public QObject {
+public:
+    ClickFilter(std::function<void()> onRelease, QObject *parent)
+        : QObject(parent), m_onRelease(std::move(onRelease)) {}
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *ev) override {
+        if (ev->type() == QEvent::MouseButtonPress) {
+            m_pressed = true;
+        } else if (ev->type() == QEvent::MouseButtonRelease) {
+            if (m_pressed && m_onRelease) {
+                m_onRelease();
+            }
+            m_pressed = false;
+        }
+        return QObject::eventFilter(obj, ev);
+    }
+
+private:
+    std::function<void()> m_onRelease;
+    bool m_pressed = false;
+};
+
 }  // namespace
 
+// --- ActionBlock --------------------------------------------------------
+
+ActionBlock::ActionBlock(const QIcon &icon, const QString &title,
+                         const QString &hint, const QString &accent,
+                         QWidget *parent)
+    : QFrame(parent)
+    , m_accent(accent) {
+    setObjectName("actionBlock");
+    setCursor(Qt::PointingHandCursor);
+    // role="action" in theme.qss owns background/border/hover; the widget
+    // only needs styled-background + hover tracking for the pseudo-state.
+    setProperty("role", QStringLiteral("action"));
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_Hover, true);
+
+    auto *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(16, 15, 16, 15);
+    layout->setSpacing(14);
+
+    // Icon sits in a soft rounded tile so the block reads as a function
+    // card rather than stacked text.
+    auto *iconTile = new QFrame(this);
+    iconTile->setObjectName("iconTile");
+    iconTile->setFixedSize(34, 34);
+    iconTile->setStyleSheet(QStringLiteral(
+        "QFrame#iconTile { background: %1; border: none; border-radius: 10px; }")
+        .arg([&accent]() {
+            if (accent == QStringLiteral("#059669"))
+                return QStringLiteral("#F0FDF4");
+            if (accent == QStringLiteral("#7C3AED"))
+                return QStringLiteral("#F5F3FF");
+            return QStringLiteral("#EFF4FF");
+        }()));
+    auto *tileLayout = new QVBoxLayout(iconTile);
+    tileLayout->setContentsMargins(0, 0, 0, 0);
+    auto *iconLabel = new QLabel(iconTile);
+    iconLabel->setPixmap(icon.pixmap(18, 18));
+    iconLabel->setAlignment(Qt::AlignCenter);
+    tileLayout->addWidget(iconLabel);
+    layout->addWidget(iconTile, 0, Qt::AlignVCenter);
+
+    auto *textLayout = new QVBoxLayout();
+    textLayout->setSpacing(3);
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    m_titleLabel = new QLabel(title, this);
+    m_titleLabel->setProperty("role", QStringLiteral("title"));
+    textLayout->addWidget(m_titleLabel);
+
+    auto *hintLabel = new QLabel(hint, this);
+    hintLabel->setProperty("role", QStringLiteral("desc"));
+    hintLabel->setWordWrap(true);
+    textLayout->addWidget(hintLabel);
+
+    layout->addLayout(textLayout, 1);
+}
+
+QString ActionBlock::titleText() const {
+    return m_titleLabel->text();
+}
+
+void ActionBlock::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        m_pressed = true;
+        event->accept();
+        return;
+    }
+    QFrame::mousePressEvent(event);
+}
+
+void ActionBlock::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && m_pressed) {
+        m_pressed = false;
+        if (rect().contains(event->pos())) {
+            emit clicked();
+        }
+        event->accept();
+        return;
+    }
+    QFrame::mouseReleaseEvent(event);
+}
+
+void ActionBlock::enterEvent(QEnterEvent *event) {
+    setCursor(Qt::PointingHandCursor);
+    update();
+    QFrame::enterEvent(event);
+}
+
+void ActionBlock::leaveEvent(QEvent *event) {
+    update();
+    QFrame::leaveEvent(event);
+}
+
+// --- WelcomeWidget ------------------------------------------------------
+
 WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) {
-    auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(24, 12, 24, 12);
-    mainLayout->setSpacing(6);
+    setObjectName(QStringLiteral("welcomePage"));
+    setAttribute(Qt::WA_StyledBackground, true);
 
-    // Title area - centered, compact.
-    auto *titleLabel = new QLabel("QtGitStudio", this);
-    titleLabel->setStyleSheet(
-        "font-size: 26px; font-weight: bold; color: #1a1a2e;"
-        " font-family: 'Microsoft YaHei UI';");
-    titleLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(titleLabel);
+    m_columnsLayout = new QHBoxLayout(this);
+    m_columnsLayout->setContentsMargins(0, 0, 0, 0);
+    m_columnsLayout->setSpacing(0);
 
-    auto *subtitleLabel = new QLabel("让 Git 对新手更加简单", this);
-    subtitleLabel->setStyleSheet(
-        "font-size: 13px; color: #6B7280;"
-        " font-family: 'Microsoft YaHei UI';");
-    subtitleLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(subtitleLabel);
-    mainLayout->addSpacing(8);
+    buildSidebar();
+    buildMainArea();
 
-    // v4-P6-15: two-column dashboard, capped at 1000px, centered.
-    m_columnsLayout = new QHBoxLayout();
-    m_columnsLayout->setSpacing(14);
-    auto *columnsWidget = new QWidget(this);
-    columnsWidget->setMaximumWidth(1000);
-    columnsWidget->setLayout(m_columnsLayout);
-    mainLayout->addWidget(columnsWidget, 0, Qt::AlignHCenter);
-    mainLayout->addStretch(1);
+    m_columnsLayout->addWidget(m_sidePanel, 0);
+    m_columnsLayout->addWidget(m_mainArea, 1);
 
-    // Left column: recent projects (height shrinks with content).
-    auto *recentCard = sectionCard("最近项目", columnsWidget);
-    auto *recentCardLayout = qobject_cast<QVBoxLayout *>(
-        recentCard->layout());
-    m_recentContainer = new QFrame(recentCard);
-    m_recentContainer->setObjectName("recentContainer");
+    setEnvironmentStatus(false, QString());
+    setGitHubStatus(false, QString());
+    refreshStrip();
+}
+
+void WelcomeWidget::buildSidebar() {
+    m_sidePanel = new QFrame(this);
+    m_sidePanel->setObjectName(QStringLiteral("welcomeSide"));
+    m_sidePanel->setProperty("role", QStringLiteral("sidebar"));
+    m_sidePanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_sidePanel->setFixedWidth(296);
+
+    auto *sideLayout = new QVBoxLayout(m_sidePanel);
+    sideLayout->setContentsMargins(0, 0, 0, 0);
+    sideLayout->setSpacing(0);
+
+    // Header: section label + project count.
+    auto *header = new QWidget(m_sidePanel);
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(16, 16, 16, 8);
+    headerLayout->setSpacing(8);
+    auto *sectionLabel = makeLabel(QStringLiteral("项目"), "section", header);
+    m_sideCountLabel = makeLabel(QStringLiteral("0"), "meta", header);
+    headerLayout->addWidget(sectionLabel);
+    headerLayout->addWidget(m_sideCountLabel, 0, Qt::AlignVCenter);
+    headerLayout->addStretch(1);
+    sideLayout->addWidget(header);
+
+    // Scrollable recent-project rail.
+    auto *scroll = new QScrollArea(m_sidePanel);
+    scroll->setObjectName(QStringLiteral("projectScroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet(
+        QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget"
+                       " { background: transparent; border: none; }"));
+    m_recentContainer = new QFrame(scroll);
+    m_recentContainer->setObjectName(QStringLiteral("recentContainer"));
     m_recentContainer->setStyleSheet(
-        "QFrame { background: transparent; border: none; }");
+        QStringLiteral("QFrame#recentContainer { background: transparent;"
+                       " border: none; }"));
     m_recentLayout = new QVBoxLayout(m_recentContainer);
-    m_recentLayout->setContentsMargins(0, 0, 0, 0);
+    m_recentLayout->setContentsMargins(8, 0, 8, 0);
     m_recentLayout->setSpacing(2);
-    recentCardLayout->addWidget(m_recentContainer);
-    // No fixed minimum height: with few projects the card shrinks.
-    recentCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    m_columnsLayout->addWidget(recentCard, 3);
+    m_recentLayout->addStretch(1);
+    scroll->setWidget(m_recentContainer);
+    sideLayout->addWidget(scroll, 1);
 
-    // Right column: quick start + environment status.
-    auto *rightColumn = new QVBoxLayout();
-    rightColumn->setSpacing(10);
+    // Dashed "add existing repository" entry.
+    auto *addRow = new QFrame(m_sidePanel);
+    addRow->setObjectName(QStringLiteral("welcomeAddRow"));
+    addRow->setProperty("role", QStringLiteral("dashed"));
+    addRow->setAttribute(Qt::WA_StyledBackground, true);
+    addRow->setCursor(Qt::PointingHandCursor);
+    auto *addLayout = new QHBoxLayout(addRow);
+    addLayout->setContentsMargins(10, 8, 10, 8);
+    auto *addLabel = makeLabel(QStringLiteral("\uFF0B  添加已有仓库\u2026"),
+                               "body", addRow);
+    addLayout->addWidget(addLabel);
+    addLayout->addStretch(1);
+    auto *addHolder = new QWidget(m_sidePanel);
+    auto *addHolderLayout = new QVBoxLayout(addHolder);
+    addHolderLayout->setContentsMargins(16, 8, 16, 10);
+    addHolderLayout->addWidget(addRow);
+    sideLayout->addWidget(addHolder);
+    addRow->installEventFilter(
+        new ClickFilter([this]() { emit openProjectRequested(); }, addRow));
 
-    auto *quickCard = sectionCard("快速开始", columnsWidget);
-    auto *quickLayout = qobject_cast<QVBoxLayout *>(quickCard->layout());
+    // Footer: environment + GitHub status with their action buttons.
+    auto *foot = new QFrame(m_sidePanel);
+    foot->setProperty("role", QStringLiteral("sidebarFoot"));
+    foot->setAttribute(Qt::WA_StyledBackground, true);
+    auto *footLayout = new QVBoxLayout(foot);
+    footLayout->setContentsMargins(16, 12, 16, 14);
+    footLayout->setSpacing(6);
+
+    auto *envRow = new QHBoxLayout();
+    envRow->setSpacing(7);
+    m_envDot = makeDot(foot, QStringLiteral("#CBD2DC"));
+    m_envStatusLabel = makeLabel(QStringLiteral("Git 环境：检测中\u2026"),
+                                 "body", foot);
+    envRow->addWidget(m_envDot);
+    envRow->addWidget(m_envStatusLabel, 1);
+    footLayout->addLayout(envRow);
+
+    auto *ghRow = new QHBoxLayout();
+    ghRow->setSpacing(7);
+    m_githubDot = makeDot(foot, QStringLiteral("#CBD2DC"));
+    m_githubStatusLabel = makeLabel(QStringLiteral("GitHub：未连接"),
+                                    "body", foot);
+    ghRow->addWidget(m_githubDot);
+    ghRow->addWidget(m_githubStatusLabel, 1);
+    footLayout->addLayout(ghRow);
+
+    auto *btnRow = new QHBoxLayout();
+    btnRow->setSpacing(6);
+    auto *envButton = new QPushButton(QStringLiteral("Git 环境"), foot);
+    envButton->setObjectName("welcomeEnvButton");
+    envButton->setCursor(Qt::PointingHandCursor);
+    auto *githubButton = new QPushButton(QStringLiteral("账户"), foot);
+    githubButton->setObjectName("welcomeGithubButton");
+    githubButton->setCursor(Qt::PointingHandCursor);
+    btnRow->addWidget(envButton);
+    btnRow->addWidget(githubButton);
+    btnRow->addStretch(1);
+    footLayout->addLayout(btnRow);
+    sideLayout->addWidget(foot);
+
+    connect(envButton, &QPushButton::clicked,
+            this, &WelcomeWidget::environmentRequested);
+    connect(githubButton, &QPushButton::clicked,
+            this, &WelcomeWidget::githubAccountRequested);
+}
+
+void WelcomeWidget::buildMainArea() {
+    m_mainArea = new QWidget(this);
+    m_mainArea->setAttribute(Qt::WA_StyledBackground, true);
+    m_mainArea->setStyleSheet(
+        QStringLiteral("QWidget#welcomeMain { background: #EEF0F4; }"));
+    m_mainArea->setObjectName(QStringLiteral("welcomeMain"));
+
+    auto *layout = new QVBoxLayout(m_mainArea);
+    layout->setContentsMargins(26, 24, 28, 22);
+    layout->setSpacing(18);
+
+    // Hero.
+    auto *heroBox = new QVBoxLayout();
+    heroBox->setSpacing(5);
+    heroBox->setContentsMargins(0, 0, 0, 0);
+    heroBox->addWidget(makeLabel(QStringLiteral("QtGitStudio"), "hero", m_mainArea));
+    heroBox->addWidget(makeLabel(QStringLiteral("让 Git 对新手更加简单"),
+                                 "subtitle", m_mainArea));
+    layout->addLayout(heroBox);
+
+    // Quick-start tiles: 2 columns, the clone tile spans the full row.
     const QStyle *st = style();
     auto *openBlock = new ActionBlock(
         st->standardIcon(QStyle::SP_DirOpenIcon),
-        "打开仓库", "打开本机已有的 Git 仓库", "#2563EB", quickCard);
+        QStringLiteral("打开仓库"),
+        QStringLiteral("打开本机已有的 Git 仓库，自动读取分支与工作区状态"),
+        QStringLiteral("#2563EB"), m_mainArea);
     openBlock->setObjectName("openAction");
     auto *initBlock = new ActionBlock(
         st->standardIcon(QStyle::SP_FileDialogNewFolder),
-        "初始化仓库", "把当前文件夹变成 Git 仓库", "#059669", quickCard);
+        QStringLiteral("初始化仓库"),
+        QStringLiteral("把当前文件夹变成 Git 仓库，并生成第一次提交"),
+        QStringLiteral("#059669"), m_mainArea);
     initBlock->setObjectName("initAction");
     auto *cloneBlock = new ActionBlock(
         st->standardIcon(QStyle::SP_ArrowDown),
-        "克隆仓库", "从远程 GitHub 克隆到本地", "#7C3AED", quickCard);
+        QStringLiteral("克隆仓库"),
+        QStringLiteral("从远程 GitHub 克隆到本地，自动识别默认分支"),
+        QStringLiteral("#7C3AED"), m_mainArea);
     cloneBlock->setObjectName("cloneAction");
-    quickLayout->addWidget(openBlock);
-    quickLayout->addWidget(initBlock);
-    quickLayout->addWidget(cloneBlock);
-    rightColumn->addWidget(quickCard);
 
-    // Environment / GitHub status card.
-    auto *statusCard = sectionCard("环境", columnsWidget);
-    auto *statusLayout = qobject_cast<QVBoxLayout *>(statusCard->layout());
-    m_envStatusLabel = new QLabel("Git 环境：检测中…", statusCard);
-    m_envStatusLabel->setStyleSheet(
-        "font-size: 12px; color: #374151; border: none;"
-        " background: transparent;");
-    statusLayout->addWidget(m_envStatusLabel);
-    m_githubStatusLabel = new QLabel("GitHub：未连接", statusCard);
-    m_githubStatusLabel->setStyleSheet(
-        "font-size: 12px; color: #374151; border: none;"
-        " background: transparent;");
-    statusLayout->addWidget(m_githubStatusLabel);
-    auto *statusRow = new QHBoxLayout();
-    auto *envButton = new QPushButton("Git 环境", statusCard);
-    envButton->setObjectName("welcomeEnvButton");
-    auto *githubButton = new QPushButton("GitHub 账户", statusCard);
-    githubButton->setObjectName("welcomeGithubButton");
-    for (QPushButton *b : {envButton, githubButton}) {
-        b->setCursor(Qt::PointingHandCursor);
-        b->setStyleSheet(
-            "QPushButton { background: #F3F4F6; color: #374151;"
-            " border: 1px solid #D1D5DB; border-radius: 6px;"
-            " padding: 5px 12px; font-size: 12px; }"
-            "QPushButton:hover { background: #E5E7EB; }");
-    }
-    statusRow->addWidget(envButton);
-    statusRow->addWidget(githubButton);
-    statusRow->addStretch();
-    statusLayout->addLayout(statusRow);
-    rightColumn->addWidget(statusCard);
-    rightColumn->addStretch();
+    m_actionGrid = new QGridLayout();
+    m_actionGrid->setHorizontalSpacing(12);
+    m_actionGrid->setVerticalSpacing(12);
+    m_actionGrid->setContentsMargins(0, 0, 0, 0);
+    m_actionGrid->addWidget(openBlock, 0, 0);
+    m_actionGrid->addWidget(initBlock, 0, 1);
+    m_actionGrid->addWidget(cloneBlock, 1, 0, 1, 2);
+    layout->addLayout(m_actionGrid);
 
-    auto *rightContainer = new QWidget(columnsWidget);
-    rightContainer->setLayout(rightColumn);
-    m_columnsLayout->addWidget(rightContainer, 2);
+    layout->addWidget(buildGuidePanel());
+    layout->addStretch(1);
+
+    // Bottom status strip: real values only (no invented repo state).
+    auto *strip = new QFrame(m_mainArea);
+    strip->setProperty("role", QStringLiteral("strip"));
+    strip->setAttribute(Qt::WA_StyledBackground, true);
+    auto *stripLayout = new QHBoxLayout(strip);
+    stripLayout->setContentsMargins(14, 11, 14, 11);
+    stripLayout->setSpacing(16);
+
+    m_stripGitLabel = makeLabel(QStringLiteral("Git 环境：检测中\u2026"),
+                                "body", strip);
+    m_stripProjectLabel = makeLabel(QStringLiteral("最近项目 0 个"),
+                                    "body", strip);
+    stripLayout->addWidget(m_stripGitLabel);
+    stripLayout->addWidget(m_stripProjectLabel);
+    stripLayout->addStretch(1);
+
+    auto *openButton = new QPushButton(QStringLiteral("打开仓库"), strip);
+    openButton->setProperty("role", QStringLiteral("primary"));
+    openButton->setCursor(Qt::PointingHandCursor);
+    stripLayout->addWidget(openButton);
+    layout->addWidget(strip);
 
     connect(openBlock, &ActionBlock::clicked,
             this, &WelcomeWidget::openProjectRequested);
@@ -267,32 +407,166 @@ WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) {
             this, &WelcomeWidget::initProjectRequested);
     connect(cloneBlock, &ActionBlock::clicked,
             this, &WelcomeWidget::cloneProjectRequested);
-    connect(envButton, &QPushButton::clicked,
-            this, &WelcomeWidget::environmentRequested);
-    connect(githubButton, &QPushButton::clicked,
-            this, &WelcomeWidget::githubAccountRequested);
+    connect(openButton, &QPushButton::clicked,
+            this, &WelcomeWidget::openProjectRequested);
+}
+
+QWidget *WelcomeWidget::buildGuidePanel() {
+    auto *panel = new QFrame(m_mainArea);
+    panel->setObjectName(QStringLiteral("guidePanel"));
+    panel->setProperty("role", QStringLiteral("panel"));
+    panel->setAttribute(Qt::WA_StyledBackground, true);
+
+    auto *v = new QVBoxLayout(panel);
+    v->setContentsMargins(16, 14, 16, 15);
+    v->setSpacing(11);
+    v->addWidget(makeLabel(QStringLiteral("\u5FEB\u901F\u4E0A\u624B"), "title", panel));
+
+    struct Step {
+        const char *badge;
+        const char *title;
+        const char *desc;
+    };
+    const Step steps[] = {
+        {"1", "\u6253\u5F00\u4ED3\u5E93",
+         "\u4ECE\u5DE6\u4FA7\u5217\u8868\u9009\u62E9\uFF0C\u6216\u6253\u5F00\u4E00\u4E2A\u672C\u673A\u4ED3\u5E93"},
+        {"2", "\u6682\u5B58\u6539\u52A8",
+         "\u5728\u6587\u4EF6\u9762\u677F\u52FE\u9009\u8981\u7EB3\u5165\u672C\u6B21\u63D0\u4EA4\u7684\u6539\u52A8"},
+        {"3", "\u63D0\u4EA4\u5386\u53F2",
+         "\u5199\u63D0\u4EA4\u4FE1\u606F\uFF0C\u6216\u7528\u63D0\u4EA4\u56FE\u5BF9\u6BD4\u5206\u652F"},
+    };
+
+    auto *row = new QHBoxLayout();
+    row->setSpacing(10);
+    for (const Step &step : steps) {
+        auto *card = new QFrame(panel);
+        card->setObjectName(QStringLiteral("guideStep"));
+        card->setStyleSheet(QStringLiteral(
+            "QFrame#guideStep { background: #F7F9FC; border: 1px solid #EEF1F6;"
+            " border-radius: 9px; }"));
+        card->setAttribute(Qt::WA_StyledBackground, true);
+        auto *cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(12, 11, 12, 11);
+        cardLayout->setSpacing(5);
+
+        auto *topRow = new QHBoxLayout();
+        topRow->setSpacing(7);
+        auto *badge = makeLabel(QString::fromLatin1(step.badge), "pillMono", card);
+        topRow->addWidget(badge, 0, Qt::AlignVCenter);
+        topRow->addWidget(makeLabel(QString::fromUtf8(step.title), "title", card), 1);
+        cardLayout->addLayout(topRow);
+
+        auto *desc = makeLabel(QString::fromUtf8(step.desc), "desc", card);
+        desc->setWordWrap(true);
+        cardLayout->addWidget(desc);
+        row->addWidget(card, 1);
+    }
+    v->addLayout(row);
+    return panel;
+}
+
+QFrame *WelcomeWidget::makeRecentRow(const QString &path) {
+    auto *row = new QFrame(m_recentContainer);
+    row->setProperty("role", QStringLiteral("row"));
+    row->setAttribute(Qt::WA_StyledBackground, true);
+    row->setCursor(Qt::PointingHandCursor);
+    row->setMinimumHeight(46);
+
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(8, 7, 8, 7);
+    rowLayout->setSpacing(9);
+
+    auto *iconLabel = new QLabel(row);
+    iconLabel->setFixedSize(24, 24);
+    iconLabel->setPixmap(style()->standardIcon(QStyle::SP_DirIcon)
+                             .pixmap(16, 16));
+    iconLabel->setAlignment(Qt::AlignCenter);
+    iconLabel->setStyleSheet(QStringLiteral(
+        "QLabel { background: #FFFFFF; border: 1px solid #E1E6EF;"
+        " border-radius: 7px; }"));
+    rowLayout->addWidget(iconLabel);
+
+    auto *textLayout = new QVBoxLayout();
+    textLayout->setSpacing(1);
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    auto *nameLabel = new QLabel(QFileInfo(path).fileName(), row);
+    nameLabel->setStyleSheet(QStringLiteral(
+        "font-size: 12.5px; font-weight: 600; color: #171A1F;"
+        " border: none; background: transparent;"));
+    textLayout->addWidget(nameLabel);
+
+    // Secondary line: branch + elided path (monospace, muted).
+    const QString branch = branchOf(path);
+    QString secondary = branch.isEmpty()
+        ? QFileInfo(path).absolutePath()
+        : QStringLiteral("%1 \u00B7 %2").arg(
+              branch, QFileInfo(path).absolutePath());
+    auto *secondaryLabel = new QLabel(
+        QFontMetrics(nameLabel->font())
+            .elidedText(secondary, Qt::ElideMiddle, 170),
+        row);
+    secondaryLabel->setToolTip(path);
+    secondaryLabel->setProperty("role", QStringLiteral("mono"));
+    textLayout->addWidget(secondaryLabel);
+    rowLayout->addLayout(textLayout, 1);
+
+    // Timestamp and presence dot share one baseline at the row tail.
+    const QString opened = lastOpenedText(path);
+    auto *tail = new QHBoxLayout();
+    tail->setSpacing(8);
+    tail->setContentsMargins(0, 0, 0, 0);
+    if (!opened.isEmpty()) {
+        auto *timeLabel = makeLabel(opened, "meta", row);
+        timeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        tail->addWidget(timeLabel, 0, Qt::AlignVCenter);
+    }
+    // Rows only exist for paths that are still directories, so the dot is
+    // green by construction - it marks "present on disk", nothing more.
+    tail->addWidget(makeDot(row, QStringLiteral("#10B981"), 6),
+                    0, Qt::AlignVCenter);
+    rowLayout->addLayout(tail);
+
+    row->installEventFilter(
+        new ClickFilter([this, path]() { emit projectSelected(path); }, row));
+    return row;
 }
 
 void WelcomeWidget::setEnvironmentStatus(bool available,
                                          const QString &version) {
-    m_envStatusLabel->setText(available
-        ? QStringLiteral("Git 环境：%1 · 可用").arg(
+    m_envAvailable = available;
+    m_envVersion = version;
+    const QString text = available
+        ? QStringLiteral("Git %1 \u00B7 可用").arg(
               version.isEmpty() ? QStringLiteral("已安装") : version)
-        : QStringLiteral("Git 环境：不可用"));
-    m_envStatusLabel->setStyleSheet(
-        QStringLiteral("font-size: 12px; color: %1; border: none;"
-                       " background: transparent;")
-            .arg(available ? "#16A34A" : "#DC2626"));
+        : QStringLiteral("Git 环境不可用");
+    if (m_envStatusLabel) m_envStatusLabel->setText(text);
+    if (m_stripGitLabel) m_stripGitLabel->setText(text);
+    setDotColor(m_envDot, available ? QStringLiteral("#10B981")
+                                    : QStringLiteral("#DC2626"));
 }
 
 void WelcomeWidget::setGitHubStatus(bool loggedIn, const QString &username) {
-    m_githubStatusLabel->setText(
-        loggedIn ? QStringLiteral("GitHub：已连接（%1）").arg(username)
-                 : QStringLiteral("GitHub：未连接"));
-    m_githubStatusLabel->setStyleSheet(
-        QStringLiteral("font-size: 12px; color: %1; border: none;"
-                       " background: transparent;")
-            .arg(loggedIn ? "#16A34A" : "#6B7280"));
+    m_githubConnected = loggedIn;
+    m_githubUser = username;
+    const QString text = loggedIn
+        ? QStringLiteral("GitHub \u00B7 %1").arg(
+              username.isEmpty() ? QStringLiteral("已连接") : username)
+        : QStringLiteral("GitHub 未连接");
+    if (m_githubStatusLabel) m_githubStatusLabel->setText(text);
+    setDotColor(m_githubDot, loggedIn ? QStringLiteral("#10B981")
+                                      : QStringLiteral("#CBD2DC"));
+}
+
+void WelcomeWidget::refreshStrip() {
+    // Count what the rail actually shows: stale paths are filtered out, so
+    // the raw feed length would over-report.
+    if (m_sideCountLabel) {
+        m_sideCountLabel->setText(QString::number(m_shownCount));
+    }
+    if (m_stripProjectLabel) {
+        m_stripProjectLabel->setText(
+            QStringLiteral("最近项目 %1 个").arg(m_shownCount));
+    }
 }
 
 void WelcomeWidget::updateRecentProjects(const QStringList &projects) {
@@ -308,113 +582,47 @@ void WelcomeWidget::updateRecentProjects(const QStringList &projects) {
         delete item;
     }
     const QStringList shown = projects.mid(0, 8);
+    int added = 0;
     for (const QString &path : shown) {
         if (!QFileInfo(path).isDir()) {
             continue;  // filter invalid / removed paths
         }
-        auto *row = new QFrame(m_recentContainer);
-        row->setCursor(Qt::PointingHandCursor);
-        row->setStyleSheet(
-            "QFrame { background: #FAFAFA; border: 1px solid #EEF0F2;"
-            " border-radius: 8px; }"
-            "QFrame:hover { background: #F0F6FF;"
-            " border-color: #BFDBFE; }");
-        row->setMinimumHeight(48);
-        auto *rowLayout = new QHBoxLayout(row);
-        rowLayout->setContentsMargins(10, 6, 10, 6);
-        rowLayout->setSpacing(8);
-
-        const QString name = QFileInfo(path).fileName();
-        auto *primaryLabel = new QLabel(name, row);
-        primaryLabel->setStyleSheet(
-            "font-size: 13px; font-weight: 600; color: #111827;"
-            " border: none; background: transparent;");
-        rowLayout->addWidget(primaryLabel);
-
-        const QString branch = branchOf(path);
-        if (!branch.isEmpty()) {
-            auto *branchLabel = new QLabel(branch, row);
-            branchLabel->setStyleSheet(
-                "font-size: 11px; color: #1E40AF;"
-                " background: #EFF6FF; border: 1px solid #BFDBFE;"
-                " border-radius: 8px; padding: 1px 7px;"
-                " font-family: Consolas, monospace;");
-            rowLayout->addWidget(branchLabel);
-        }
-        rowLayout->addStretch();
-
-        // v4-P6-17: project status badge - all shown rows exist (missing
-        // paths are filtered), so the badge reads 正常.
-        auto *statusLabel = new QLabel(QStringLiteral("正常"), row);
-        statusLabel->setStyleSheet(
-            "font-size: 11px; color: #15803D;"
-            " background: #F0FDF4; border: 1px solid #BBF7D0;"
-            " border-radius: 8px; padding: 1px 7px;");
-        rowLayout->addWidget(statusLabel);
-
-        const QString opened = lastOpenedText(path);
-        if (!opened.isEmpty()) {
-            auto *timeLabel = new QLabel(opened, row);
-            timeLabel->setStyleSheet(
-                "font-size: 11px; color: #9CA3AF; border: none;"
-                " background: transparent;");
-            rowLayout->addWidget(timeLabel);
-        }
-
-        const QString pathText =
-            QFontMetrics(primaryLabel->font()).elidedText(
-                path, Qt::ElideMiddle, 260);
-        auto *pathLabel = new QLabel(pathText, row);
-        pathLabel->setToolTip(path);
-        pathLabel->setStyleSheet(
-            "font-size: 11px; color: #9CA3AF; border: none;"
-            " background: transparent;");
-        rowLayout->addWidget(pathLabel);
-
-        const QString captured = path;
-        // Clickable whole row (no nested buttons).
-        class RowClickFilter : public QObject {
-        public:
-            RowClickFilter(QString path, std::function<void()> onRelease)
-                : m_path(std::move(path)), m_onRelease(std::move(onRelease)) {}
-            QString m_path;
-            std::function<void()> m_onRelease;
-            bool m_pressed = false;
-        protected:
-            bool eventFilter(QObject *obj, QEvent *ev) override {
-                if (ev->type() == QEvent::MouseButtonPress) {
-                    m_pressed = true;
-                } else if (ev->type() == QEvent::MouseButtonRelease) {
-                    if (m_pressed && m_onRelease) {
-                        m_onRelease();
-                    }
-                    m_pressed = false;
-                }
-                return QObject::eventFilter(obj, ev);
-            }
-        };
-        auto *filter = new RowClickFilter(
-            captured, [this, captured]() { emit projectSelected(captured); });
-        row->installEventFilter(filter);
-        filter->setParent(row);
-
-        m_recentLayout->addWidget(row);
+        m_recentLayout->addWidget(makeRecentRow(path));
+        ++added;
     }
-    if (shown.isEmpty()) {
-        auto *emptyLabel = new QLabel(
-            "还没有打开过项目", m_recentContainer);
-        emptyLabel->setStyleSheet(
-            "font-size: 12px; color: #9CA3AF; border: none;"
-            " background: transparent; padding: 12px;");
+    if (added == 0) {
+        auto *emptyLabel = makeLabel(QStringLiteral("还没有打开过项目"),
+                                     "meta", m_recentContainer);
+        emptyLabel->setContentsMargins(8, 12, 8, 12);
         m_recentLayout->addWidget(emptyLabel);
     }
-    m_recentLayout->addStretch();
+    m_recentLayout->addStretch(1);
+    m_shownCount = added;
+    refreshStrip();
 }
 
 void WelcomeWidget::resizeEvent(QResizeEvent *event) {
-    // v4-P6-15: wide -> two columns, narrow -> single column. Only the
-    // column direction changes; nothing else is rebuilt.
-    m_columnsLayout->setDirection(
-        width() < 960 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    // Responsive: the rail narrows first, then the action grid stacks.
+    const int w = width();
+    if (m_sidePanel) {
+        if (w < 860) {
+            m_sidePanel->setFixedWidth(240);
+        } else {
+            m_sidePanel->setFixedWidth(296);
+        }
+    }
+    if (m_actionGrid) {
+        // Re-add the clone tile so its span follows the column count.
+        QLayoutItem *cloneItem = m_actionGrid->itemAtPosition(1, 0);
+        if (cloneItem && cloneItem->widget()) {
+            QWidget *cloneW = cloneItem->widget();
+            m_actionGrid->removeWidget(cloneW);
+            if (w < 760) {
+                m_actionGrid->addWidget(cloneW, 2, 0, 1, 1);
+            } else {
+                m_actionGrid->addWidget(cloneW, 1, 0, 1, 2);
+            }
+        }
+    }
     QWidget::resizeEvent(event);
 }
