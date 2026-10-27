@@ -1,4 +1,5 @@
 #include "GitHubAccountDialog.h"
+#include "Theme.h"
 #include "GitHubAccountService.h"
 #include "GitHubRepositoryWidget.h"
 #include "ProjectController.h"
@@ -24,7 +25,8 @@ GitHubAccountDialog::GitHubAccountDialog(GitHubAccountService *service,
     setMinimumWidth(400);
 
     auto *title = new QLabel(QStringLiteral("GitHub 账户"), this);
-    title->setStyleSheet("font-size: 16px; font-weight: 600;");
+    title->setProperty("role", QStringLiteral("dialogTitle"));
+
 
     m_statusLabel = new QLabel(this);
     m_statusLabel->setObjectName("githubStatus");
@@ -81,9 +83,9 @@ void GitHubAccountDialog::refreshUi() {
     m_statusLabel->setText(loggedIn
                                ? QStringLiteral("状态：已连接")
                                : QStringLiteral("状态：未连接"));
-    m_statusLabel->setStyleSheet(loggedIn
-                                     ? "color: #16A34A; font-weight: 600;"
-                                     : "color: #6B7280; font-weight: 600;");
+    m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+    m_statusLabel->setProperty("state", loggedIn ? QStringLiteral("ok") : QStringLiteral("idle"));
+
     m_usernameLabel->setText(loggedIn
                                  ? QStringLiteral("用户名：%1")
                                        .arg(m_service->username())
@@ -107,7 +109,8 @@ void GitHubAccountDialog::connectAccount() {
     layout->setSpacing(10);
 
     auto *title = new QLabel(QStringLiteral("连接 GitHub"), &dialog);
-    title->setStyleSheet("font-size: 15px; font-weight: 600;");
+    title->setProperty("role", QStringLiteral("sectionTitle"));
+
     layout->addWidget(title);
 
     auto *hint = new QLabel(
@@ -115,7 +118,8 @@ void GitHubAccountDialog::connectAccount() {
                        "再粘贴到这里。Token 不会明文保存到文件。"),
         &dialog);
     hint->setWordWrap(true);
-    hint->setStyleSheet("color: #4B5563; font-size: 12px;");
+    hint->setProperty("role", QStringLiteral("bodyText"));
+
     layout->addWidget(hint);
 
     auto *tokenEdit = new QLineEdit(&dialog);
@@ -132,12 +136,8 @@ void GitHubAccountDialog::connectAccount() {
     openButton->setToolTip(
         QStringLiteral("在默认浏览器中打开 GitHub 的 Personal Access "
                        "Token 管理页"));
-    openButton->setStyleSheet(
-        "QPushButton { background: #F8FAFC; color: #1E40AF;"
-        " border: 1px solid #BFDBFE; border-radius: 6px;"
-        " padding: 8px 14px; font-size: 13px; font-weight: 600; }"
-        "QPushButton:hover { background: #EFF6FF; }"
-        "QPushButton:pressed { background: #DBEAFE; }");
+    openButton->setProperty("role", QStringLiteral("softPrimary"));
+
     connect(openButton, &QPushButton::clicked, &dialog, [&dialog]() {
         QDesktopServices::openUrl(
             QUrl(QStringLiteral("https://github.com/settings/tokens")));
@@ -145,11 +145,8 @@ void GitHubAccountDialog::connectAccount() {
     auto *cancelButton = new QPushButton(QStringLiteral("取消"), &dialog);
     auto *connectButton = new QPushButton(QStringLiteral("连接"), &dialog);
     connectButton->setDefault(true);
-    connectButton->setStyleSheet(
-        "QPushButton { background: #1F2937; color: white;"
-        " border: none; border-radius: 6px; padding: 8px 18px;"
-        " font-size: 13px; font-weight: 600; }"
-        "QPushButton:hover { background: #111827; }");
+    connectButton->setProperty("role", QStringLiteral("dark"));
+
     buttonRow->addWidget(openButton);
     buttonRow->addStretch();
     buttonRow->addWidget(cancelButton);

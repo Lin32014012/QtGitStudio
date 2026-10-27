@@ -1,4 +1,5 @@
 #include "BranchGraphViewerDialog.h"
+#include "Theme.h"
 #include "BranchRelationWidget.h"
 
 #include <QPushButton>
@@ -32,13 +33,8 @@ BranchGraphViewerDialog::BranchGraphViewerDialog(
     auto *zoomInBtn = new QPushButton(QStringLiteral("放大"), this);
     auto *zoomOutBtn = new QPushButton(QStringLiteral("缩小"), this);
     auto *fitBtn = new QPushButton(QStringLiteral("查看全部"), this);
-    const QString style =
-        "QPushButton { background: #FFFFFF; color: #1F2937;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 4px 10px; font-size: 12px; }"
-        "QPushButton:hover { background: #F3F4F6; }";
     for (QPushButton *b : {zoomInBtn, zoomOutBtn, fitBtn}) {
-        b->setStyleSheet(style);
+        b->setProperty("role", QStringLiteral("ghost"));
     }
     toolRow->addWidget(zoomInBtn);
     toolRow->addWidget(zoomOutBtn);

@@ -1,4 +1,5 @@
 #include "CloneDialog.h"
+#include "Theme.h"
 #include "ActionButtonFeedback.h"
 #include "ProjectController.h"
 
@@ -61,7 +62,8 @@ CloneDialog::CloneDialog(ProjectController *controller, QWidget *parent)
 
     m_errorLabel = new QLabel(this);
     m_errorLabel->setObjectName("cloneErrorLabel");
-    m_errorLabel->setStyleSheet("color: #B91C1C; background: #FEF2F2; padding: 8px; border-radius: 4px;");
+    m_errorLabel->setProperty("role", QStringLiteral("errorInline"));
+
     m_errorLabel->setWordWrap(true);
     m_errorLabel->hide();
     layout->addWidget(m_errorLabel);

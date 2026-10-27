@@ -1,4 +1,5 @@
 #include "ReleaseWidget.h"
+#include "Theme.h"
 #include "GitHubAccountService.h"
 #include "GitTagService.h"
 #include "ActionButtonFeedback.h"
@@ -96,8 +97,8 @@ ReleaseWidget::ReleaseWidget(GitHubAccountService *accountService,
     m_releaseTree->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     auto *listLabel = new QLabel(QStringLiteral("Release 列表"), this);
-    listLabel->setStyleSheet(
-        "font-size: 13px; font-weight: bold; color: #333;");
+    listLabel->setProperty("role", QStringLiteral("cardTitle"));
+
 
     auto *buttonRow = new QHBoxLayout();
     buttonRow->addWidget(m_openButton);

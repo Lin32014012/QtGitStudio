@@ -432,6 +432,89 @@ QDialog {
     background: #FFFFFF;
 }
 
+/* ---------------- dialogs (v4-P6-26) ---------------- */
+QLabel[role="dialogTitle"] {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel[role="sectionTitle"] {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QLabel[role="statusText"] {
+    font-weight: 600;
+    color: #6B7280;
+}
+
+QLabel[role="statusText"][state="ok"] {
+    color: #16A34A;
+}
+
+QLabel[role="statusText"][state="danger"] {
+    color: #DC2626;
+}
+
+QLabel[role="statusText"][state="info"] {
+    color: #2563EB;
+}
+
+QLabel[role="statusText"][state="plain"] {
+    color: #374151;
+}
+
+QLabel[role="statusText"][state="idle"] {
+    color: #6B7280;
+}
+
+QLabel[role="dangerBox"] {
+    color: #7F1D1D;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+QLabel[role="errorInline"] {
+    color: #B91C1C;
+    background: #FEF2F2;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+QPushButton[role="softPrimary"] {
+    background: #F8FAFC;
+    color: #1E40AF;
+    border: 1px solid #BFDBFE;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton[role="softPrimary"]:hover {
+    background: #EFF6FF;
+}
+
+QPushButton[role="softPrimary"]:pressed {
+    background: #DBEAFE;
+}
+
+QPushButton[role="dark"] {
+    background: #1F2937;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton[role="dark"]:hover {
+    background: #111827;
+}
+
 /* ---------------- base ---------------- */
 QWidget {
     font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", sans-serif;

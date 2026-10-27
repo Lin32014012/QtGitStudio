@@ -1,4 +1,5 @@
 #include "GitEnvironmentDialog.h"
+#include "Theme.h"
 #include "GitEnvironmentService.h"
 #include "GitCommandExecutor.h"
 
@@ -36,7 +37,8 @@ GitEnvironmentDialog::GitEnvironmentDialog(GitEnvironmentService *service,
 
     auto *layout = new QVBoxLayout(this);
     auto *title = new QLabel(QStringLiteral("Git 环境"), this);
-    title->setStyleSheet("font-size: 16px; font-weight: 600;");
+    title->setProperty("role", QStringLiteral("dialogTitle"));
+
     layout->addWidget(title);
     layout->addWidget(m_statusLabel);
     layout->addWidget(m_pathLabel);
@@ -88,10 +90,14 @@ void GitEnvironmentDialog::applyResult(
         : QString();
     if (env.available) {
         m_statusLabel->setText(QStringLiteral("检测状态：Git 可用"));
-        m_statusLabel->setStyleSheet("color: #16A34A; font-weight: 600;");
+        m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+        m_statusLabel->setProperty("state", QStringLiteral("ok"));
+
     } else {
         m_statusLabel->setText(QStringLiteral("检测状态：Git 不可用"));
-        m_statusLabel->setStyleSheet("color: #DC2626; font-weight: 600;");
+        m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+        m_statusLabel->setProperty("state", QStringLiteral("danger"));
+
     }
     m_pathLabel->setText(QStringLiteral("路径：%1").arg(
         env.gitPath.isEmpty() ? QStringLiteral("（自动检测）") : env.gitPath));
@@ -128,7 +134,9 @@ void GitEnvironmentDialog::reDetect() {
     m_closeButton->setEnabled(false);
     m_redetectButton->setText(QStringLiteral("检测中…"));
     m_statusLabel->setText(QStringLiteral("正在检测 Git 环境…"));
-    m_statusLabel->setStyleSheet("color: #2563EB; font-weight: 600;");
+    m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+    m_statusLabel->setProperty("state", QStringLiteral("info"));
+
     const QString path = m_customPath;
     QTimer::singleShot(0, this, [this, path]() {
         const GitEnvironmentService::GitEnvironment env =

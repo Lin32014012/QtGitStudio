@@ -1,4 +1,5 @@
 #include "StashWidget.h"
+#include "Theme.h"
 #include "GitController.h"
 #include "ActionButtonFeedback.h"
 
@@ -41,8 +42,8 @@ StashWidget::StashWidget(GitStashService *service, GitController *controller,
     m_stashTree->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     auto *listLabel = new QLabel(QStringLiteral("Stash 列表"), this);
-    listLabel->setStyleSheet(
-        "font-size: 13px; font-weight: bold; color: #333;");
+    listLabel->setProperty("role", QStringLiteral("cardTitle"));
+
 
     auto *buttonRow = new QHBoxLayout();
     buttonRow->addWidget(m_applyButton);

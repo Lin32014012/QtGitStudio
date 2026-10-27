@@ -1,4 +1,5 @@
 #include "BisectWidget.h"
+#include "Theme.h"
 #include "GitController.h"
 #include "ActionButtonFeedback.h"
 
@@ -29,10 +30,8 @@ BisectWidget::BisectWidget(GitBisectService *service, GitController *controller,
     , m_resetButton(new QPushButton(QStringLiteral("重置二分查找"), this)) {
     // Status display.
     m_statusLabel->setWordWrap(true);
-    m_statusLabel->setStyleSheet(
-        "QLabel { background: #EFF6FF; border: 1px solid #BFDBFE;"
-        " border-radius: 8px; padding: 10px; color: #1E40AF;"
-        " font-size: 13px; }");
+    m_statusLabel->setProperty("role", QStringLiteral("infoBox"));
+
     m_currentLabel->setWordWrap(true);
     m_goodLabel->setWordWrap(true);
     m_badLabel->setWordWrap(true);

@@ -1,4 +1,5 @@
 #include "TagManagerDialog.h"
+#include "Theme.h"
 #include "ActionButtonFeedback.h"
 
 #include <QTreeWidget>
@@ -50,8 +51,8 @@ TagManagerDialog::TagManagerDialog(GitTagService *service, QWidget *parent)
     m_tagTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
     auto *listLabel = new QLabel(QStringLiteral("标签列表"), this);
-    listLabel->setStyleSheet(
-        "font-size: 13px; font-weight: bold; color: #333;");
+    listLabel->setProperty("role", QStringLiteral("cardTitle"));
+
 
     auto *buttonRow = new QHBoxLayout();
     buttonRow->addWidget(m_deleteButton);

@@ -1,4 +1,5 @@
 #include "DiffPreviewDialog.h"
+#include "Theme.h"
 
 #include <QPlainTextEdit>
 #include <QLineEdit>
@@ -45,14 +46,9 @@ DiffPreviewDialog::DiffPreviewDialog(const QString &diffText,
     auto *wrapCheck = new QCheckBox(QStringLiteral("自动换行"), this);
     wrapCheck->setChecked(true);
     auto *copyBtn = new QPushButton(QStringLiteral("复制全部"), this);
-    const QString btnStyle =
-        "QPushButton { background: #FFFFFF; color: #1F2937;"
-        " border: 1px solid #D1D5DB; border-radius: 6px;"
-        " padding: 4px 10px; font-size: 12px; }"
-        "QPushButton:hover { background: #F3F4F6; }";
     for (QPushButton *b :
          {zoomInBtn, zoomOutBtn, resetBtn, findBtn, copyBtn}) {
-        b->setStyleSheet(btnStyle);
+        b->setProperty("role", QStringLiteral("ghost"));
     }
     toolRow->addWidget(zoomInBtn);
     toolRow->addWidget(zoomOutBtn);
@@ -70,11 +66,8 @@ DiffPreviewDialog::DiffPreviewDialog(const QString &diffText,
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     m_leftEdit = new QPlainTextEdit(splitter);
     m_rightEdit = new QPlainTextEdit(splitter);
-    const QString paneStyle =
-        "QPlainTextEdit { border: 1px solid #E5E7EB;"
-        " border-radius: 6px; padding: 4px; }";
-    m_leftEdit->setStyleSheet(paneStyle);
-    m_rightEdit->setStyleSheet(paneStyle);
+    m_leftEdit->setProperty("role", QStringLiteral("diffView"));
+    m_rightEdit->setProperty("role", QStringLiteral("diffView"));
     m_leftEdit->setReadOnly(true);
     m_rightEdit->setReadOnly(true);
     m_leftEdit->setLineWrapMode(QPlainTextEdit::NoWrap);

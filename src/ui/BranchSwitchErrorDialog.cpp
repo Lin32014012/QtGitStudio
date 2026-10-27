@@ -1,4 +1,5 @@
 #include "BranchSwitchErrorDialog.h"
+#include "Theme.h"
 
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -22,7 +23,8 @@ BranchSwitchErrorDialog::BranchSwitchErrorDialog(
     layout->setSpacing(12);
 
     auto *title = new QLabel("无法切换分支", this);
-    title->setStyleSheet("font-size: 19px; font-weight: 700; color: #991B1B;");
+    title->setProperty("role", QStringLiteral("dangerTitle"));
+
     layout->addWidget(title);
 
     auto *explanation = new QLabel(
@@ -30,7 +32,8 @@ BranchSwitchErrorDialog::BranchSwitchErrorDialog(
             .arg(targetBranch),
         this);
     explanation->setWordWrap(true);
-    explanation->setStyleSheet("color: #111827;");
+    explanation->setProperty("role", QStringLiteral("bodyText"));
+
     layout->addWidget(explanation);
 
     const QStringList files = conflictingFiles(gitError);
@@ -42,9 +45,8 @@ BranchSwitchErrorDialog::BranchSwitchErrorDialog(
             : QStringLiteral("可能被覆盖的文件：\n• ") + files.join("\n• "));
     filesLabel->setWordWrap(true);
     filesLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    filesLabel->setStyleSheet(
-        "color: #7F1D1D; background: #FEF2F2; border: 1px solid #FECACA; "
-        "border-radius: 6px; padding: 10px;");
+    filesLabel->setProperty("role", QStringLiteral("dangerBox"));
+
     layout->addWidget(filesLabel);
 
     auto *actions = new QLabel(
@@ -55,7 +57,9 @@ BranchSwitchErrorDialog::BranchSwitchErrorDialog(
         "暂存当前修改功能将在后续版本提供，请先提交修改或取消切换。",
         this);
     actions->setWordWrap(true);
-    actions->setStyleSheet("color: #374151;");
+    actions->setProperty("role", QStringLiteral("statusText"));
+    actions->setProperty("state", QStringLiteral("plain"));
+
     layout->addWidget(actions);
 
     auto *rawToggle = new QToolButton(this);

@@ -1,4 +1,5 @@
 #include "GitHubRepositoryWidget.h"
+#include "Theme.h"
 #include "GitHubAccountService.h"
 #include "ProjectController.h"
 
@@ -18,7 +19,8 @@ GitHubRepositoryWidget::GitHubRepositoryWidget(
     , m_accountService(accountService)
     , m_projectController(projectController) {
     auto *title = new QLabel(QStringLiteral("我的GitHub仓库列表"), this);
-    title->setStyleSheet("font-size: 15px; font-weight: 600;");
+    title->setProperty("role", QStringLiteral("sectionTitle"));
+
 
     m_statusLabel = new QLabel(this);
     m_statusLabel->setObjectName("githubReposStatus");
@@ -48,7 +50,9 @@ GitHubRepositoryWidget::GitHubRepositoryWidget(
 
 void GitHubRepositoryWidget::showLoggedOut() {
     m_statusLabel->setText(QStringLiteral("请先登录GitHub"));
-    m_statusLabel->setStyleSheet("color: #DC2626;");
+    m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+    m_statusLabel->setProperty("state", QStringLiteral("danger"));
+
     m_listWidget->clear();
 }
 
@@ -71,7 +75,9 @@ void GitHubRepositoryWidget::renderRepositories(
     m_statusLabel->setText(
         QStringLiteral("共 %1 个仓库（双击条目或使用右侧按钮克隆）")
             .arg(repos.size()));
-    m_statusLabel->setStyleSheet("color: #16A34A;");
+    m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+    m_statusLabel->setProperty("state", QStringLiteral("ok"));
+
 }
 
 void GitHubRepositoryWidget::refresh() {
@@ -80,13 +86,17 @@ void GitHubRepositoryWidget::refresh() {
         return;
     }
     m_statusLabel->setText(QStringLiteral("正在加载仓库列表…"));
-    m_statusLabel->setStyleSheet("color: #374151;");
+    m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+    m_statusLabel->setProperty("state", QStringLiteral("plain"));
+
     m_repoService.fetchRepos(
         m_accountService->token(),
         [this](const GitHubRepositoryService::FetchResult &result) {
             if (!result.success) {
                 m_statusLabel->setText(result.error);
-                m_statusLabel->setStyleSheet("color: #DC2626;");
+                m_statusLabel->setProperty("role", QStringLiteral("statusText"));
+                m_statusLabel->setProperty("state", QStringLiteral("danger"));
+
                 m_listWidget->clear();
                 return;
             }
