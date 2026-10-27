@@ -1,15 +1,31 @@
 #include <QApplication>
+#include <QFile>
 #include <QIcon>
 #include <QSize>
 #include <QStringList>
 #include <QTimer>
 #include "MainWindow.h"
 
+namespace {
+
+// v4-P6-26: load the single global theme from the Qt resource bundle.
+// Missing resource is not fatal - the app falls back to platform styling.
+void applyTheme(QApplication &app) {
+    QFile qss(QStringLiteral(":/theme/theme.qss"));
+    if (qss.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        app.setStyleSheet(QString::fromUtf8(qss.readAll()));
+        qss.close();
+    }
+}
+
+}  // namespace
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("QtGitStudio"));
     QApplication::setApplicationVersion(QStringLiteral(QTGITSTUDIO_VERSION));
+    applyTheme(app);
     QIcon applicationIcon;
     for (const int size : {16, 24, 32, 48, 64, 128, 256}) {
         applicationIcon.addFile(

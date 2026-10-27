@@ -8,4 +8,7 @@
         <file alias="QtGitStudio-128.png">icons/QtGitStudio-128.png</file>
         <file alias="QtGitStudio-256.png">icons/QtGitStudio-256.png</file>
     </qresource>
+    <qresource prefix="/theme">
+        <file alias="theme.qss">theme.qss</file>
+    </qresource>
 </RCC>

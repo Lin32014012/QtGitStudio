@@ -19,3 +19,6 @@ Thumbs.db
 
 # local demo repositories used for screenshots / manual checks
 demo/
+
+# local UI design sketches (HTML mockups + capture artifacts)
+sketches/
