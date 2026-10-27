@@ -422,6 +422,12 @@ QWidget#welcomeMain {
     background: #EEF0F4;
 }
 
+QScrollArea#welcomeMainScroll,
+QScrollArea#welcomeMainScroll > QWidget > QWidget {
+    background: #EEF0F4;
+    border: none;
+}
+
 QFrame#guideStep {
     background: #F7F9FC;
     border: 1px solid #EEF1F6;

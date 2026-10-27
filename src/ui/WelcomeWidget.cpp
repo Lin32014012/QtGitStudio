@@ -206,7 +206,7 @@ WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) {
     buildMainArea();
 
     m_columnsLayout->addWidget(m_sidePanel, 0);
-    m_columnsLayout->addWidget(m_mainArea, 1);
+    m_columnsLayout->addWidget(m_mainScroll, 1);
 
     setEnvironmentStatus(false, QString());
     setGitHubStatus(false, QString());
@@ -390,6 +390,16 @@ void WelcomeWidget::buildMainArea() {
     openButton->setCursor(Qt::PointingHandCursor);
     stripLayout->addWidget(openButton);
     layout->addWidget(strip);
+
+    // The workbench column scrolls instead of clipping: with a short window
+    // (or a font whose metrics make the tiles taller) the content must stay
+    // reachable rather than being pushed out of the page.
+    m_mainScroll = new QScrollArea(this);
+    m_mainScroll->setObjectName(QStringLiteral("welcomeMainScroll"));
+    m_mainScroll->setWidgetResizable(true);
+    m_mainScroll->setFrameShape(QFrame::NoFrame);
+    m_mainScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_mainScroll->setWidget(m_mainArea);
 
     connect(openBlock, &ActionBlock::clicked,
             this, &WelcomeWidget::openProjectRequested);

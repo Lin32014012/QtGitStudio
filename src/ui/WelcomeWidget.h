@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QFrame>
+#include <QScrollArea>
 #include <QGridLayout>
 #include <QBoxLayout>
 #include <QIcon>
@@ -81,6 +82,7 @@ private:
     QFrame *m_recentContainer = nullptr;
     QFrame *m_sidePanel = nullptr;
     QWidget *m_mainArea = nullptr;
+    QScrollArea *m_mainScroll = nullptr;
     QHBoxLayout *m_columnsLayout = nullptr;
     QGridLayout *m_actionGrid = nullptr;
     QWidget *m_cloneBlock = nullptr;
