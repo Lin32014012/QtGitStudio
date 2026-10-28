@@ -50,6 +50,8 @@ add_library(QtGitStudio_lib STATIC
     src/parsers/GitStatusParser.cpp
     src/parsers/GitStatusParser.h
     # services
+    src/services/PracticeService.cpp
+    src/services/PracticeService.h
     src/services/ConflictResolutionPlan.cpp
     src/services/ConflictResolutionPlan.h
     src/services/GitBisectService.cpp
