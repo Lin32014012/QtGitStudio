@@ -1,5 +1,6 @@
 #include "PracticeDialog.h"
 
+#include "PracticeLog.h"
 #include "PracticeService.h"
 #include "Theme.h"
 
@@ -133,10 +134,19 @@ PracticeDialog::PracticeDialog(QWidget *parent) : QDialog(parent) {
     locationRow->addWidget(locationTitle);
     locationRow->addWidget(m_locationLabel, 1);
     locationRow->addWidget(changeButton);
+    auto *exportButton = new QPushButton(QStringLiteral("导出记录…"), this);
+    exportButton->setObjectName(QStringLiteral("practiceExportLog"));
+    exportButton->setProperty("role", QStringLiteral("ghost"));
+    exportButton->setCursor(Qt::PointingHandCursor);
+    exportButton->setToolTip(
+        QStringLiteral("把做过哪些练习、每次判定的原文导出成 Markdown。"));
+    locationRow->addWidget(exportButton);
     outer->addLayout(locationRow);
 
     connect(changeButton, &QPushButton::clicked,
             this, &PracticeDialog::chooseSandboxRoot);
+    connect(exportButton, &QPushButton::clicked,
+            this, &PracticeDialog::exportLog);
 
     connect(m_list, &QTreeWidget::itemSelectionChanged,
             this, &PracticeDialog::updateSelectionUi);
@@ -162,6 +172,26 @@ void PracticeDialog::setSandboxRoot(const QString &root) {
     if (m_locationLabel) {
         m_locationLabel->setText(QDir::toNativeSeparators(m_sandboxRoot));
         m_locationLabel->setToolTip(m_sandboxRoot);
+    }
+}
+
+void PracticeDialog::exportLog() {
+    const QString suggested = QDir(QStandardPaths::writableLocation(
+                                       QStandardPaths::DocumentsLocation))
+                                  .absoluteFilePath(
+                                      QStringLiteral("QtGitStudio-练习记录.md"));
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("导出练习记录"), suggested,
+        QStringLiteral("Markdown (*.md)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QString error;
+    if (PracticeLog::exportTo(path, &error)) {
+        showResult(QStringLiteral("已导出到：%1").arg(QDir::toNativeSeparators(path)),
+                   true);
+    } else {
+        showResult(error, false);
     }
 }
 
@@ -385,6 +415,7 @@ void PracticeDialog::checkPractice() {
 
     const QString finishedId = m_selectedId;
     const PracticeCheck check = PracticeService::check(finishedId, m_activeRepoPath);
+    PracticeLog::record(finishedId, check.passed, check.detail);
 
     if (!check.passed) {
         showResult(check.detail, false);

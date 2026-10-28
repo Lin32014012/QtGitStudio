@@ -39,6 +39,7 @@ private:
     void checkPractice();
     void revealHint();
     void chooseSandboxRoot();
+    void exportLog();
     void reloadItemStates();
     void showResult(const QString &text, bool ok);
     QString nextPracticeId(const QString &id) const;

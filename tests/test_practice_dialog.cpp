@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
 
@@ -45,6 +46,8 @@ int childCount(QTreeWidget *list) {
 
 void TestPracticeDialog::initTestCase() {
     isolateTestSettings();
+    // Verdicts are written to the practice log under AppLocalDataLocation.
+    QStandardPaths::setTestModeEnabled(true);
     // A previous run may have left pass marks behind; the assertions below
     // describe behaviour, not history.
     QSettings().clear();

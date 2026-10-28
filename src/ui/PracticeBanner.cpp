@@ -1,5 +1,6 @@
 #include "PracticeBanner.h"
 
+#include "PracticeLog.h"
 #include "PracticeService.h"
 #include "Theme.h"
 
@@ -107,6 +108,9 @@ void PracticeBanner::check() {
         return;
     }
     const PracticeCheck check = PracticeService::check(m_practiceId, m_repoPath);
+    // Every verdict is recorded, passes and failures alike: a report of
+    // attempts is more honest than a list of wins.
+    PracticeLog::record(m_practiceId, check.passed, check.detail);
     m_result->setText(check.detail);
     m_result->setProperty("state", check.passed ? QStringLiteral("ok")
                                                : QStringLiteral("warn"));

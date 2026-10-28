@@ -4,6 +4,7 @@
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QFileInfo>
@@ -27,6 +28,8 @@ private slots:
 
 void TestPracticeBanner::initTestCase() {
     isolateTestSettings();
+    // Verdicts are written to the practice log under AppLocalDataLocation.
+    QStandardPaths::setTestModeEnabled(true);
     QSettings().clear();
 }
 
