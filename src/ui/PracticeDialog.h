@@ -36,6 +36,8 @@ private:
     void checkPractice();
     void revealHint();
     void reloadItemStates();
+    void showResult(const QString &text, bool ok);
+    QString nextPracticeId(const QString &id) const;
     QTreeWidgetItem *itemFor(const QString &id) const;
     bool isPassed(const QString &id) const;
     void setPassed(const QString &id, bool passed);

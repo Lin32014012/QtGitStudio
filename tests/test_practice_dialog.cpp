@@ -24,6 +24,8 @@ private slots:
     void selectingPracticeShowsItsGoal();
     void startCreatesSandboxAndAnnouncesIt();
     void checkReportsIncompleteThenComplete();
+    void passingOnePracticeMovesToTheNext();
+    void chapterHeaderShowsProgress();
     void cleanupTestCase();
 };
 
@@ -53,12 +55,17 @@ void TestPracticeDialog::listsBothChaptersAndEveryPractice() {
 
     // Two chapters, and every catalogue entry appears exactly once.
     QCOMPARE(list->topLevelItemCount(), 2);
-    QStringList chapterNames;
+    // Headers carry a tally ("基础（0/4）"), so match the chapter name by
+    // prefix rather than equality.
+    bool hasBasic = false;
+    bool hasConflict = false;
     for (int i = 0; i < list->topLevelItemCount(); ++i) {
-        chapterNames.append(list->topLevelItem(i)->text(0));
+        const QString text = list->topLevelItem(i)->text(0);
+        if (text.startsWith(QStringLiteral("基础"))) hasBasic = true;
+        if (text.startsWith(QStringLiteral("冲突"))) hasConflict = true;
     }
-    QVERIFY(chapterNames.contains(QStringLiteral("基础")));
-    QVERIFY(chapterNames.contains(QStringLiteral("冲突")));
+    QVERIFY(hasBasic);
+    QVERIFY(hasConflict);
 
     QCOMPARE(childCount(list), PracticeService::catalog().size());
 }
@@ -157,8 +164,112 @@ void TestPracticeDialog::checkReportsIncompleteThenComplete() {
     QCOMPARE(git.exitCode(), 0);
 
     check->click();
-    QVERIFY2(result->text().contains(QStringLiteral("完成")),
+    QVERIFY2(result->text().contains(QStringLiteral("已通过")),
              qPrintable(result->text()));
+}
+
+
+void TestPracticeDialog::passingOnePracticeMovesToTheNext() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    PracticeDialog dialog;
+    dialog.setSandboxRoot(dir.path());
+    QSignalSpy spy(&dialog, &PracticeDialog::practiceStarted);
+
+    QPushButton *start = nullptr;
+    QPushButton *check = nullptr;
+    for (QPushButton *button : dialog.findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("开始练习")) start = button;
+        if (button->text() == QStringLiteral("检查完成")) check = button;
+    }
+    QVERIFY(start && check);
+
+    QVERIFY(dialog.selectPractice(QStringLiteral("first-commit")));
+    start->click();
+    QCOMPARE(spy.count(), 1);
+    const QString repoPath = spy.first().at(1).toString();
+
+    QProcess git;
+    git.setWorkingDirectory(repoPath);
+    git.setProcessEnvironment([repoPath] {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert(QStringLiteral("GIT_CEILING_DIRECTORIES"),
+                   QFileInfo(repoPath).absolutePath());
+        return env;
+    }());
+    git.start(QStringLiteral("git"), {QStringLiteral("commit"), QStringLiteral("-m"),
+                                     QStringLiteral("练习：第一次提交")});
+    QVERIFY(git.waitForFinished(20000));
+    QCOMPARE(git.exitCode(), 0);
+
+    check->click();
+
+    // Selecting the next exercise is how the tool keeps momentum going.
+    QCOMPARE(dialog.selectedPracticeId(), QStringLiteral("branch-and-merge"));
+    auto *result = dialog.findChild<QLabel *>(QStringLiteral("practiceResult"));
+    QVERIFY(result != nullptr);
+    QVERIFY2(result->text().contains(QStringLiteral("已通过")),
+             qPrintable(result->text()));
+    QVERIFY2(result->text().contains(QStringLiteral("下一关")),
+             qPrintable(result->text()));
+}
+
+void TestPracticeDialog::chapterHeaderShowsProgress() {
+    // Earlier cases earn real passes in this same process, so reset the
+    // store before asserting on a fresh tally.
+    QSettings().clear();
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    PracticeDialog dialog;
+    dialog.setSandboxRoot(dir.path());
+
+    auto *list = dialog.findChild<QTreeWidget *>(QStringLiteral("practiceList"));
+    QVERIFY(list != nullptr);
+
+    auto headerText = [list](const QString &chapter) {
+        for (int i = 0; i < list->topLevelItemCount(); ++i) {
+            if (list->topLevelItem(i)->text(0).startsWith(chapter)) {
+                return list->topLevelItem(i)->text(0);
+            }
+        }
+        return QString();
+    };
+
+    // Fresh settings: every chapter starts at 0 passed.
+    QVERIFY2(headerText(QStringLiteral("基础")).contains(QStringLiteral("（0/4）")),
+             qPrintable(headerText(QStringLiteral("基础"))));
+    QVERIFY2(headerText(QStringLiteral("冲突")).contains(QStringLiteral("（0/6）")),
+             qPrintable(headerText(QStringLiteral("冲突"))));
+
+    // Pass one exercise end to end, then the tally must follow.
+    QSignalSpy spy(&dialog, &PracticeDialog::practiceStarted);
+    QVERIFY(dialog.selectPractice(QStringLiteral("first-commit")));
+    QPushButton *start = nullptr;
+    QPushButton *check = nullptr;
+    for (QPushButton *button : dialog.findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("开始练习")) start = button;
+        if (button->text() == QStringLiteral("检查完成")) check = button;
+    }
+    QVERIFY(start && check);
+    start->click();
+    const QString repoPath = spy.first().at(1).toString();
+
+    QProcess git;
+    git.setWorkingDirectory(repoPath);
+    git.setProcessEnvironment([repoPath] {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert(QStringLiteral("GIT_CEILING_DIRECTORIES"),
+                   QFileInfo(repoPath).absolutePath());
+        return env;
+    }());
+    git.start(QStringLiteral("git"), {QStringLiteral("commit"), QStringLiteral("-m"),
+                                     QStringLiteral("练习：第一次提交")});
+    QVERIFY(git.waitForFinished(20000));
+    QCOMPARE(git.exitCode(), 0);
+
+    check->click();
+    QVERIFY2(headerText(QStringLiteral("基础")).contains(QStringLiteral("（1/4）")),
+             qPrintable(headerText(QStringLiteral("基础"))));
 }
 
 void TestPracticeDialog::cleanupTestCase() {

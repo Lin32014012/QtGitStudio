@@ -136,14 +136,39 @@ QString PracticeDialog::sandboxRoot() const {
 
 void PracticeDialog::buildList() {
     m_list->clear();
+
+    // Count first so a chapter header can show 已通过/总数 without a second
+    // pass over the tree.
+    QHash<QString, QPair<int, int>> chapterTally;  // chapter -> (passed, total)
+    QStringList chapterOrder;
+    for (const PracticeDefinition &item : PracticeService::catalog()) {
+        if (!chapterTally.contains(item.chapter)) {
+            chapterTally.insert(item.chapter, qMakePair(0, 0));
+            chapterOrder.append(item.chapter);
+        }
+        auto &tally = chapterTally[item.chapter];
+        ++tally.second;
+        if (isPassed(item.id)) {
+            ++tally.first;
+        }
+    }
+
     QHash<QString, QTreeWidgetItem *> chapters;
+    for (const QString &chapterName : chapterOrder) {
+        auto *chapter = new QTreeWidgetItem(m_list);
+        const auto tally = chapterTally.value(chapterName);
+        chapter->setText(0, QStringLiteral("%1（%2/%3）")
+                                .arg(chapterName)
+                                .arg(tally.first)
+                                .arg(tally.second));
+        chapter->setFlags(Qt::ItemIsEnabled);
+        chapters.insert(chapterName, chapter);
+    }
+
     for (const PracticeDefinition &item : PracticeService::catalog()) {
         QTreeWidgetItem *chapter = chapters.value(item.chapter);
         if (!chapter) {
-            chapter = new QTreeWidgetItem(m_list);
-            chapter->setText(0, item.chapter);
-            chapter->setFlags(Qt::ItemIsEnabled);
-            chapters.insert(item.chapter, chapter);
+            continue;
         }
         auto *row = new QTreeWidgetItem(chapter);
         row->setText(0, statusPrefix(isPassed(item.id)) + item.title);
@@ -176,11 +201,53 @@ bool PracticeDialog::selectPractice(const QString &id) {
 }
 
 void PracticeDialog::reloadItemStates() {
-    const QString keep = m_selectedId;
+    // Rebuilding redraws the ✓/○ marks and the chapter tallies. It must not
+    // run the selection handler: that would clear the sandbox the student
+    // still has open.
+    const QString keepId = m_selectedId;
+    const QString keepRepo = m_activeRepoPath;
+    const bool hintWasVisible = m_hintVisible;
+    const QString resultText = m_result->text();
+    const QVariant resultState = m_result->property("state");
+    const bool resultWasVisible = m_result->isVisible();
+
+    m_list->blockSignals(true);
     buildList();
-    if (!keep.isEmpty()) {
-        selectPractice(keep);
+    if (!keepId.isEmpty()) {
+        if (QTreeWidgetItem *row = itemFor(keepId)) {
+            m_list->setCurrentItem(row);
+        }
     }
+    m_list->blockSignals(false);
+
+    m_activeRepoPath = keepRepo;
+    m_hintVisible = hintWasVisible;
+    m_hint->setVisible(hintWasVisible);
+    m_hintButton->setText(hintWasVisible ? QStringLiteral("隐藏提示")
+                                         : QStringLiteral("显示提示"));
+    if (resultWasVisible && !resultText.isEmpty()) {
+        m_result->setText(resultText);
+        m_result->setProperty("state", resultState);
+        Theme::restyle(m_result);
+        m_result->show();
+    }
+}
+
+QString PracticeDialog::nextPracticeId(const QString &id) const {
+    const auto catalog = PracticeService::catalog();
+    for (int i = 0; i < catalog.size(); ++i) {
+        if (catalog.at(i).id == id) {
+            return (i + 1 < catalog.size()) ? catalog.at(i + 1).id : QString();
+        }
+    }
+    return QString();
+}
+
+void PracticeDialog::showResult(const QString &text, bool ok) {
+    m_result->setText(text);
+    m_result->setProperty("state", ok ? QStringLiteral("ok") : QStringLiteral("warn"));
+    Theme::restyle(m_result);
+    m_result->show();
 }
 
 bool PracticeDialog::isPassed(const QString &id) const {
@@ -250,18 +317,13 @@ void PracticeDialog::startPractice() {
     QString repoPath;
     QString error;
     if (!PracticeService::generate(m_selectedId, m_sandboxRoot, &repoPath, &error)) {
-        m_result->setText(QStringLiteral("无法创建练习仓库：%1").arg(error));
-        m_result->setProperty("state", QStringLiteral("warn"));
-        Theme::restyle(m_result);
-        m_result->show();
+        showResult(QStringLiteral("无法创建练习仓库：%1").arg(error), false);
         return;
     }
     m_activeRepoPath = repoPath;
-    m_result->setText(QStringLiteral("练习仓库已就绪：%1\n在主窗口里操作完成后，回到这里点「检查完成」。")
-                          .arg(repoPath));
-    m_result->setProperty("state", QStringLiteral("info"));
-    Theme::restyle(m_result);
-    m_result->show();
+    // The strip in the main window now carries the verdict, so this note is
+    // only about where the sandbox lives.
+    showResult(QStringLiteral("练习仓库已就绪：%1").arg(repoPath), true);
     emit practiceStarted(m_selectedId, repoPath);
 }
 
@@ -270,22 +332,45 @@ void PracticeDialog::checkPractice() {
         return;
     }
     if (m_activeRepoPath.isEmpty()) {
-        m_result->setText(QStringLiteral("还没开始这一关。先点「开始练习」生成练习仓库。"));
-        m_result->setProperty("state", QStringLiteral("warn"));
-        Theme::restyle(m_result);
-        m_result->show();
+        showResult(QStringLiteral("还没开始这一关。先点「开始练习」生成练习仓库。"), false);
         return;
     }
 
-    const PracticeCheck check = PracticeService::check(m_selectedId, m_activeRepoPath);
-    m_result->setText(check.detail);
-    m_result->setProperty("state", check.passed ? QStringLiteral("ok")
-                                               : QStringLiteral("warn"));
-    Theme::restyle(m_result);
-    m_result->show();
+    const QString finishedId = m_selectedId;
+    const PracticeCheck check = PracticeService::check(finishedId, m_activeRepoPath);
 
-    if (check.passed != isPassed(m_selectedId)) {
-        setPassed(m_selectedId, check.passed);
-        reloadItemStates();
+    if (!check.passed) {
+        showResult(check.detail, false);
+        // A previously earned pass can be lost (the sandbox was rebuilt).
+        if (isPassed(finishedId)) {
+            setPassed(finishedId, false);
+            reloadItemStates();
+            showResult(check.detail, false);
+        }
+        return;
+    }
+
+    setPassed(finishedId, true);
+    const QString nextId = nextPracticeId(finishedId);
+    const QString finishedTitle = PracticeService::definition(finishedId).title;
+
+    reloadItemStates();
+
+    if (nextId.isEmpty()) {
+        showResult(QStringLiteral("\u2713 已通过「%1」。这是最后一关，全部完成。")
+                       .arg(finishedTitle),
+                   true);
+        return;
+    }
+
+    const QString nextTitle = PracticeService::definition(nextId).title;
+    if (selectPractice(nextId)) {
+        // selectPractice runs the selection handler, which clears the old
+        // sandbox and hides the result - say the verdict afterwards.
+        showResult(QStringLiteral("\u2713 已通过「%1」。下一关：%2 —— 点「开始练习」生成沙箱。")
+                       .arg(finishedTitle, nextTitle),
+                   true);
+    } else {
+        showResult(QStringLiteral("\u2713 已通过「%1」。").arg(finishedTitle), true);
     }
 }
