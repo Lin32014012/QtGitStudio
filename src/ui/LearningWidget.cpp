@@ -195,7 +195,42 @@ QList<LearningTopic> buildTopics() {
                    QStringLiteral("分支工作流"),
                    doc(QStringLiteral(
                        "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'><h2 style='color:#1E40AF; margin:6px 0;'>Merge Conflict 合并冲突</h2><h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3><p style='margin:6px 0; line-height:1.6;'>两处修改同一位置时 Git 无法自动合并，需要人工决定保留内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>什么时候使用</h3><p style='margin:6px 0; line-height:1.6;'>合并/rebase 时 Git 提示冲突。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3><p style='margin:6px 0; line-height:1.6;'>冲突文件在文件变化面板标出，Diff 查看器显示冲突标记。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3><ol style='margin:4px 0 8px 18px;'><li style='margin:3px 0;'>查看冲突文件</li><li style='margin:3px 0;'>编辑保留正确内容</li><li style='margin:3px 0;'>暂存解决的文件</li><li style='margin:3px 0;'>完成提交</li></ol><h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3><p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'> 冲突标记 <<<<<<< ======= >>>>>>> 包围两侧内容。</p><h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3><p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'> 不要盲目覆盖，理解两侧意图再决定。</p></body></html>"))});
-    topics.append({QStringLiteral("merge-abort"),
+    topics.append({QStringLiteral("conflict-three-way"),
+                   QStringLiteral("冲突的三方对比 Base / Ours / Theirs"),
+                   QStringLiteral("分支工作流"),
+                   doc(QStringLiteral(
+                       "<html><body style='font-family:\"Microsoft YaHei UI\",sans-serif; font-size:13px; color:#1F2937;'>"
+                       "<h2 style='color:#1E40AF; margin:6px 0;'>三方对比 Base / Ours / Theirs</h2>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>用途</h3>"
+                       "<p style='margin:6px 0; line-height:1.6;'>冲突文件在 Git 里同时存着三个版本。看懂这三个版本，冲突就不再是"
+                       "「把一堆箭头删掉」，而是「三方各自想表达什么」。</p>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>三个版本分别是什么</h3>"
+                       "<ul style='margin:4px 0 8px 18px;'>"
+                       "<li style='margin:3px 0;'><b>Base (Stage 1)</b>：两个分支分开之前的共同祖先，也就是「原来什么样」。</li>"
+                       "<li style='margin:3px 0;'><b>Ours (Stage 2)</b>：你当前所在分支的版本，也就是「我改成了什么样」。</li>"
+                       "<li style='margin:3px 0;'><b>Theirs (Stage 3)</b>：被合进来那一方的版本，也就是「别人改成了什么样」。</li>"
+                       "</ul>"
+                       "<p style='margin:6px 0; line-height:1.6;'>只有两个版本时，你只知道「两边不一样」，无法判断哪边改了什么。"
+                       "有了 Base，才能看出<b>每一侧各自做了哪些修改</b>，从而决定保留、合并还是重写。</p>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>QtGitStudio 中的位置</h3>"
+                       "<p style='margin:6px 0; line-height:1.6;'>文件变化区顶部出现红色冲突提示时，点击其中的「解决冲突」，"
+                       "窗口上方会并排显示 Ours / Base / Theirs 三栏，下方是应用前的结果预览。</p>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>基本步骤</h3>"
+                       "<ol style='margin:4px 0 8px 18px;'>"
+                       "<li style='margin:3px 0;'>在文件变化区找到标记为 C 冲突的文件</li>"
+                       "<li style='margin:3px 0;'>点击冲突提示里的「解决冲突」</li>"
+                       "<li style='margin:3px 0;'>先读 Base，再看 Ours 和 Theirs 各自改了什么</li>"
+                       "<li style='margin:3px 0;'>逐个冲突块选择保留哪一侧，或手工编辑结果后应用</li>"
+                       "</ol>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>注意事项</h3>"
+                       "<p style='background:#F0FDF4; border-left:4px solid #16A34A; padding:8px 10px; border-radius:4px; color:#14532D;'>"
+                       " 大多数冲突的正确解法不是二选一，而是把两边的改动都留下。</p>"
+                       "<h3 style='color:#1E40AF; margin:8px 0 4px;'>常见风险</h3>"
+                       "<p style='background:#FEF2F2; border-left:4px solid #DC2626; padding:8px 10px; border-radius:4px; color:#7F1D1D;'>"
+                       " rebase 过程中 Ours / Theirs 的方向和在 merge 里相反，不要凭直觉判断；"
+                       "也不要只看冲突标记就删，先弄明白两边各自的意图。</p>"
+                       "</body></html>"))});
+topics.append({QStringLiteral("merge-abort"),
                    QStringLiteral("Merge Abort 放弃合并"),
                    QStringLiteral("分支工作流"),
                    doc(QStringLiteral(

@@ -604,13 +604,15 @@ QVector<PracticeDefinition> PracticeService::catalog() {
          QStringLiteral("冲突：保留一边"),
          QStringLiteral("app.js 冲突了，这次只保留 main 的版本，并完成合并。"),
          QStringLiteral("入门"),
-         QStringLiteral("删掉 feature 一侧的内容和所有冲突标记，暂存后完成合并。"),
+         QStringLiteral("点冲突提示里的「解决冲突」可以看到 Base/Ours/Theirs 三栏对比，"
+                        "先看清两边各自改了什么，再删掉不需要的一侧。"),
          conflict},
         {QStringLiteral("resolve-merge-conflict"),
          QStringLiteral("冲突：保留两边的意图"),
          QStringLiteral("app.js 存在真实冲突：保留两边的意图并完成这次合并。"),
          QStringLiteral("进阶"),
-         QStringLiteral("解决后要暂存文件，然后再完成合并提交。"),
+         QStringLiteral("对比 Base 就能看出两边各改了什么；目标是让两条改动都活下来，"
+                        "而不是二选一。解决后记得暂存再完成合并。"),
          conflict},
         {QStringLiteral("conflict-multiple-files"),
          QStringLiteral("冲突：多个文件"),
