@@ -26,6 +26,8 @@ private slots:
     void checkReportsIncompleteThenComplete();
     void passingOnePracticeMovesToTheNext();
     void chapterHeaderShowsProgress();
+    void sandboxRootFallsBackToTheDefault();
+    void storedSandboxRootIsHonouredAndOverridable();
     void cleanupTestCase();
 };
 
@@ -270,6 +272,47 @@ void TestPracticeDialog::chapterHeaderShowsProgress() {
     check->click();
     QVERIFY2(headerText(QStringLiteral("基础")).contains(QStringLiteral("（1/4）")),
              qPrintable(headerText(QStringLiteral("基础"))));
+}
+
+
+void TestPracticeDialog::sandboxRootFallsBackToTheDefault() {
+    QSettings().clear();
+    PracticeDialog dialog;
+    QCOMPARE(QDir::cleanPath(dialog.sandboxRoot()),
+             QDir::cleanPath(PracticeDialog::defaultSandboxRoot()));
+    QVERIFY(dialog.sandboxRoot().contains(QStringLiteral("practices")));
+
+    // The location is surfaced in the UI, not just held in a member.
+    auto *location = dialog.findChild<QLabel *>(QStringLiteral("practiceLocation"));
+    QVERIFY(location != nullptr);
+    QCOMPARE(QDir::cleanPath(location->text()), QDir::cleanPath(dialog.sandboxRoot()));
+}
+
+void TestPracticeDialog::storedSandboxRootIsHonouredAndOverridable() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    // A stored preference wins over the default...
+    QSettings().setValue(QStringLiteral("practices/sandboxRoot"), dir.path());
+    {
+        PracticeDialog dialog;
+        QCOMPARE(QDir::cleanPath(dialog.sandboxRoot()), QDir::cleanPath(dir.path()));
+    }
+
+    // ...and setSandboxRoot overrides it in memory without rewriting the
+    // preference, which is what tests and screenshots rely on.
+    QTemporaryDir other;
+    QVERIFY(other.isValid());
+    {
+        PracticeDialog dialog;
+        dialog.setSandboxRoot(other.path());
+        QCOMPARE(QDir::cleanPath(dialog.sandboxRoot()), QDir::cleanPath(other.path()));
+        auto *location = dialog.findChild<QLabel *>(QStringLiteral("practiceLocation"));
+        QVERIFY(location != nullptr);
+        QCOMPARE(QDir::cleanPath(location->text()), QDir::cleanPath(other.path()));
+    }
+    QCOMPARE(QSettings().value(QStringLiteral("practices/sandboxRoot")).toString(),
+             dir.path());
 }
 
 void TestPracticeDialog::cleanupTestCase() {

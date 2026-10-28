@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -19,6 +20,7 @@
 namespace {
 
 const char *kPassedKey = "practices/passed/";
+const char *kSandboxRootKey = "practices/sandboxRoot";
 
 QString statusPrefix(bool passed) {
     return passed ? QStringLiteral("\u2713  ") : QStringLiteral("\u25CB  ");
@@ -31,9 +33,8 @@ PracticeDialog::PracticeDialog(QWidget *parent) : QDialog(parent) {
     setWindowTitle(QStringLiteral("动手练习"));
     setMinimumSize(880, 560);
 
-    m_sandboxRoot = QDir(QStandardPaths::writableLocation(
-                             QStandardPaths::AppLocalDataLocation))
-                        .absoluteFilePath(QStringLiteral("practices"));
+    const QString storedRoot = QSettings().value(kSandboxRootKey).toString();
+    m_sandboxRoot = storedRoot.isEmpty() ? defaultSandboxRoot() : storedRoot;
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(16, 14, 16, 14);
@@ -113,6 +114,30 @@ PracticeDialog::PracticeDialog(QWidget *parent) : QDialog(parent) {
     splitter->setStretchFactor(1, 1);
     outer->addWidget(splitter, 1);
 
+    // Where the sandboxes live. Worth showing: a student who wants their
+    // exercises next to their coursework can move them.
+    auto *locationRow = new QHBoxLayout();
+    locationRow->setSpacing(8);
+    auto *locationTitle = new QLabel(QStringLiteral("练习位置："), this);
+    locationTitle->setProperty("role", QStringLiteral("meta"));
+    m_locationLabel = new QLabel(QDir::toNativeSeparators(m_sandboxRoot), this);
+    m_locationLabel->setObjectName(QStringLiteral("practiceLocation"));
+    m_locationLabel->setProperty("role", QStringLiteral("meta"));
+    m_locationLabel->setToolTip(m_sandboxRoot);
+    m_locationLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    auto *changeButton = new QPushButton(QStringLiteral("更改…"), this);
+    changeButton->setObjectName(QStringLiteral("practiceChangeLocation"));
+    changeButton->setProperty("role", QStringLiteral("ghost"));
+    changeButton->setCursor(Qt::PointingHandCursor);
+    changeButton->setToolTip(QStringLiteral("选择练习仓库的存放位置，会记住这个选择。"));
+    locationRow->addWidget(locationTitle);
+    locationRow->addWidget(m_locationLabel, 1);
+    locationRow->addWidget(changeButton);
+    outer->addLayout(locationRow);
+
+    connect(changeButton, &QPushButton::clicked,
+            this, &PracticeDialog::chooseSandboxRoot);
+
     connect(m_list, &QTreeWidget::itemSelectionChanged,
             this, &PracticeDialog::updateSelectionUi);
     connect(m_hintButton, &QPushButton::clicked,
@@ -126,8 +151,30 @@ PracticeDialog::PracticeDialog(QWidget *parent) : QDialog(parent) {
     updateSelectionUi();
 }
 
+QString PracticeDialog::defaultSandboxRoot() {
+    return QDir(QStandardPaths::writableLocation(
+                    QStandardPaths::AppLocalDataLocation))
+        .absoluteFilePath(QStringLiteral("practices"));
+}
+
 void PracticeDialog::setSandboxRoot(const QString &root) {
     m_sandboxRoot = root;
+    if (m_locationLabel) {
+        m_locationLabel->setText(QDir::toNativeSeparators(m_sandboxRoot));
+        m_locationLabel->setToolTip(m_sandboxRoot);
+    }
+}
+
+void PracticeDialog::chooseSandboxRoot() {
+    const QString chosen = QFileDialog::getExistingDirectory(
+        this, QStringLiteral("选择练习仓库的存放位置"), m_sandboxRoot);
+    if (chosen.isEmpty()) {
+        return;
+    }
+    m_sandboxRoot = QDir::toNativeSeparators(chosen);
+    QSettings().setValue(QString::fromLatin1(kSandboxRootKey), chosen);
+    m_locationLabel->setText(m_sandboxRoot);
+    m_locationLabel->setToolTip(chosen);
 }
 
 QString PracticeDialog::sandboxRoot() const {
