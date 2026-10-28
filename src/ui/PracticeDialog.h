@@ -25,8 +25,9 @@ public:
     bool selectPractice(const QString &id);
 
 signals:
-    // Emitted after a sandbox is created; the main window opens it.
-    void repositoryRequested(const QString &repoPath);
+    // Emitted after a sandbox is created: the main window opens the
+    // repository and binds its practice banner to the same exercise.
+    void practiceStarted(const QString &practiceId, const QString &repoPath);
 
 private:
     void buildList();

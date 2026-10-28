@@ -262,7 +262,7 @@ void PracticeDialog::startPractice() {
     m_result->setProperty("state", QStringLiteral("info"));
     Theme::restyle(m_result);
     m_result->show();
-    emit repositoryRequested(repoPath);
+    emit practiceStarted(m_selectedId, repoPath);
 }
 
 void PracticeDialog::checkPractice() {

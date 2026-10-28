@@ -31,6 +31,7 @@
 #include "ReleaseWidget.h"
 #include "LearningWidget.h"
 #include "PracticeDialog.h"
+#include "PracticeBanner.h"
 #include "NotificationManager.h"
 #include "UserFacingError.h"
 #include "ProjectController.h"
@@ -248,6 +249,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_fileCountLabel->setProperty("role", QStringLiteral("bodyText"));
     statusLayout->addWidget(m_fileCountLabel, 1, 1);
 
+    // Practice strip sits above everything: when a sandbox is open the
+    // student should never wonder which exercise they are on.
+    m_practiceBanner = new PracticeBanner(contentWidget);
+    contentLayout->addWidget(m_practiceBanner);
     contentLayout->addWidget(m_statusCard);
 
     // v4-P1-2 Remote area.
@@ -788,6 +793,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     if (qEnvironmentVariableIsSet("QTGITSTUDIO_OPEN_PRACTICE")) {
         QTimer::singleShot(400, this, [this]() { openPracticeDialog(); });
     }
+    // Binds the practice strip to whatever --open loaded, so the banner can
+    // be inspected (and screenshotted) without driving the dialog by hand.
+    if (qEnvironmentVariableIsSet("QTGITSTUDIO_PRACTICE_ID")) {
+        QTimer::singleShot(700, this, [this]() {
+            const QString id = qEnvironmentVariable("QTGITSTUDIO_PRACTICE_ID");
+            if (m_practiceBanner && !m_currentProjectPath.isEmpty()) {
+                m_practiceBanner->setPractice(id, m_currentProjectPath);
+            }
+        });
+    }
     connect(m_abortMergeButton, &QPushButton::clicked,
             this, &MainWindow::onAbortMerge);
 
@@ -1168,6 +1183,15 @@ void MainWindow::onInitProject() {
 }
 
 void MainWindow::onProjectSelected(const QString &path) {
+    // Switching to anything other than the practice sandbox ends the
+    // exercise session; leaving the strip up would claim the user is still
+    // working on a practice they left.
+    if (m_practiceBanner && m_practiceBanner->isActive() &&
+        QDir::cleanPath(m_practiceBanner->repositoryPath()) !=
+            QDir::cleanPath(path)) {
+        m_practiceBanner->clear();
+    }
+
     loadProject(path);
 }
 
@@ -2314,8 +2338,11 @@ void MainWindow::onLearnModeClicked() {
 
     connect(practiceButton, &QPushButton::clicked, this, [this, &dialog]() {
         PracticeDialog practice(this);
-        connect(&practice, &PracticeDialog::repositoryRequested, this,
-                [this, &dialog](const QString &repoPath) {
+        connect(&practice, &PracticeDialog::practiceStarted, this,
+                [this, &dialog](const QString &practiceId, const QString &repoPath) {
+                    if (m_practiceBanner) {
+                        m_practiceBanner->setPractice(practiceId, repoPath);
+                    }
                     dialog.accept();  // step out of the way, show the repo
                     onProjectSelected(repoPath);
                 });
@@ -2327,8 +2354,13 @@ void MainWindow::onLearnModeClicked() {
 
 void MainWindow::openPracticeDialog() {
     PracticeDialog practice(this);
-    connect(&practice, &PracticeDialog::repositoryRequested, this,
-            [this](const QString &repoPath) { onProjectSelected(repoPath); });
+    connect(&practice, &PracticeDialog::practiceStarted, this,
+            [this](const QString &practiceId, const QString &repoPath) {
+                if (m_practiceBanner) {
+                    m_practiceBanner->setPractice(practiceId, repoPath);
+                }
+                onProjectSelected(repoPath);
+            });
     practice.exec();
 }
 

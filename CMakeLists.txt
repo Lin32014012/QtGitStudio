@@ -144,6 +144,8 @@ add_library(QtGitStudio_lib STATIC
     src/ui/StashWidget.h
     src/ui/TagManagerDialog.cpp
     src/ui/TagManagerDialog.h
+    src/ui/PracticeBanner.cpp
+    src/ui/PracticeBanner.h
     src/ui/PracticeDialog.cpp
     src/ui/PracticeDialog.h
     src/ui/WelcomeWidget.cpp

@@ -8,6 +8,7 @@
 #include "GitRebaseService.h"
 #include "NotificationManager.h"
 
+class PracticeBanner;
 class QLabel;
 class QPushButton;
 class QToolButton;
@@ -183,6 +184,8 @@ private:
     QTabWidget *m_branchTab;
     
     // Status card widgets
+    // Strip carrying the active practice while its sandbox is open.
+    PracticeBanner *m_practiceBanner = nullptr;
     QFrame *m_statusCard;
     QLabel *m_projectLabel;
     QLabel *m_gitStatusLabel;

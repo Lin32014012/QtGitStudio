@@ -81,7 +81,7 @@ void TestPracticeDialog::startCreatesSandboxAndAnnouncesIt() {
     QVERIFY(dir.isValid());
     PracticeDialog dialog;
     dialog.setSandboxRoot(dir.path());
-    QSignalSpy spy(&dialog, &PracticeDialog::repositoryRequested);
+    QSignalSpy spy(&dialog, &PracticeDialog::practiceStarted);
 
     QVERIFY(dialog.selectPractice(QStringLiteral("conflict-keep-one-side")));
     auto *start = dialog.findChild<QPushButton *>();
@@ -97,8 +97,9 @@ void TestPracticeDialog::startCreatesSandboxAndAnnouncesIt() {
     }
     QVERIFY2(clicked, "start button not found");
     QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("conflict-keep-one-side"));
 
-    const QString repoPath = spy.first().first().toString();
+    const QString repoPath = spy.first().at(1).toString();
     QVERIFY(QFileInfo::exists(repoPath + QStringLiteral("/.git")));
     // A conflicted merge is the sandbox's starting state.
     QVERIFY(QFileInfo::exists(repoPath + QStringLiteral("/.git/MERGE_HEAD")));
@@ -109,7 +110,7 @@ void TestPracticeDialog::checkReportsIncompleteThenComplete() {
     QVERIFY(dir.isValid());
     PracticeDialog dialog;
     dialog.setSandboxRoot(dir.path());
-    QSignalSpy spy(&dialog, &PracticeDialog::repositoryRequested);
+    QSignalSpy spy(&dialog, &PracticeDialog::practiceStarted);
 
     // Checking before starting must explain what to do, not crash.
     dialog.show();
@@ -126,7 +127,7 @@ void TestPracticeDialog::checkReportsIncompleteThenComplete() {
 
     start->click();
     QCOMPARE(spy.count(), 1);
-    const QString repoPath = spy.first().first().toString();
+    const QString repoPath = spy.first().at(1).toString();
 
     // Prove generation actually succeeded before asserting on the verdict:
     // otherwise a generation failure would look like a missing message.
