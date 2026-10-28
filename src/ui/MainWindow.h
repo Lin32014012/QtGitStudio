@@ -118,6 +118,9 @@ private slots:
     void onRefreshClicked();
     void onResolveConflicts();
     void onLearnModeClicked();
+    // Scaffolding hook: opens the practice dialog at startup when
+    // QTGITSTUDIO_OPEN_PRACTICE is set (screenshots / manual QA).
+    void openPracticeDialog();
     void onCommitGraphRequested();
     void onTagManagerRequested();
     void onStashRequested();

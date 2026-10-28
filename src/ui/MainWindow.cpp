@@ -30,6 +30,7 @@
 #include "GitHubReleaseService.h"
 #include "ReleaseWidget.h"
 #include "LearningWidget.h"
+#include "PracticeDialog.h"
 #include "NotificationManager.h"
 #include "UserFacingError.h"
 #include "ProjectController.h"
@@ -783,6 +784,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // v4-P6-4: learning-mode entry restored (minimal entry only).
     connect(m_learnButton, &QPushButton::clicked,
             this, &MainWindow::onLearnModeClicked);
+    // Screenshot / QA scaffolding - inert unless the variable is set.
+    if (qEnvironmentVariableIsSet("QTGITSTUDIO_OPEN_PRACTICE")) {
+        QTimer::singleShot(400, this, [this]() { openPracticeDialog(); });
+    }
     connect(m_abortMergeButton, &QPushButton::clicked,
             this, &MainWindow::onAbortMerge);
 
@@ -2288,9 +2293,43 @@ void MainWindow::onLearnModeClicked() {
     dialog.setWindowTitle(QStringLiteral("学习模式"));
     dialog.setMinimumSize(820, 520);
     auto *layout = new QVBoxLayout(&dialog);
+
+    // v4-P6-27: practices live next to the reading material. Picking one
+    // closes the learning window and opens the generated sandbox in the
+    // normal workspace, so the student operates the real UI rather than a
+    // teaching-only imitation of it.
+    auto *practiceRow = new QHBoxLayout();
+    auto *practiceButton = new QPushButton(QStringLiteral("动手练习"), &dialog);
+    practiceButton->setObjectName(QStringLiteral("openPracticeButton"));
+    practiceButton->setProperty("role", QStringLiteral("primary"));
+    practiceButton->setCursor(Qt::PointingHandCursor);
+    practiceButton->setToolTip(
+        QStringLiteral("在一次性仓库里练习提交、分支和冲突解决。"));
+    practiceRow->addWidget(practiceButton);
+    practiceRow->addStretch(1);
+    layout->addLayout(practiceRow);
+
     auto *learning = new LearningWidget(&dialog);
     layout->addWidget(learning);
+
+    connect(practiceButton, &QPushButton::clicked, this, [this, &dialog]() {
+        PracticeDialog practice(this);
+        connect(&practice, &PracticeDialog::repositoryRequested, this,
+                [this, &dialog](const QString &repoPath) {
+                    dialog.accept();  // step out of the way, show the repo
+                    onProjectSelected(repoPath);
+                });
+        practice.exec();
+    });
+
     dialog.exec();
+}
+
+void MainWindow::openPracticeDialog() {
+    PracticeDialog practice(this);
+    connect(&practice, &PracticeDialog::repositoryRequested, this,
+            [this](const QString &repoPath) { onProjectSelected(repoPath); });
+    practice.exec();
 }
 
 void MainWindow::promptGitMissing(const GitEnvironmentService::GitEnvironment &env) {
