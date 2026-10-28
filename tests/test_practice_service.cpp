@@ -16,8 +16,12 @@ bool runGit(const QString &repoPath, const QStringList &args,
             QByteArray *output = nullptr) {
     GitCommandExecutor executor;
     executor.setWorkingDirectory(repoPath);
-    executor.setExtraEnvironment({QStringLiteral("GIT_CEILING_DIRECTORIES=%1")
-                                      .arg(QFileInfo(repoPath).absolutePath())});
+    executor.setExtraEnvironment({
+        QStringLiteral("GIT_CEILING_DIRECTORIES=%1")
+            .arg(QFileInfo(repoPath).absolutePath()),
+        // --continue paths open an editor for the message; keep them
+        // non-interactive or the test would hang.
+        QStringLiteral("GIT_EDITOR=true")});
     const auto result = executor.execute(args.first(), args.mid(1));
     if (output) {
         *output = result.output;
@@ -65,21 +69,43 @@ private slots:
 
     void partialStagingCheckRequiresExactlyOneFile();
     void revertPracticeDetectsRevertCommit();
+
+    void keepOneSideRejectsTheOtherBranch();
+    void multipleFilesRejectsLeavingOneUnresolved();
+    void rebaseConflictPassesAfterContinue();
+    void cherryPickConflictPassesAfterContinue();
+    void abortPracticeRejectsCommittingTheMerge();
 };
 
 void TestPracticeService::catalogIsComplete() {
     const auto catalog = PracticeService::catalog();
-    QVERIFY(catalog.size() >= 5);
+    QVERIFY(catalog.size() >= 10);
     QStringList ids;
+    QStringList chapters;
     for (const auto &item : catalog) {
         QVERIFY(!item.id.isEmpty());
         QVERIFY(!item.title.isEmpty());
         QVERIFY(!item.goal.isEmpty());
+        QVERIFY(!item.chapter.isEmpty());
+        if (!chapters.contains(item.chapter)) {
+            chapters.append(item.chapter);
+        }
         QVERIFY(!ids.contains(item.id));
         ids.append(item.id);
         // every catalog entry must round-trip through definition()
         QCOMPARE(PracticeService::definition(item.id).title, item.title);
     }
+    // Both chapters must be represented, and the conflict chapter is the
+    // point of the tool - keep it from silently disappearing.
+    QVERIFY(chapters.contains(QStringLiteral("基础")));
+    QVERIFY(chapters.contains(QStringLiteral("冲突")));
+    int conflictCount = 0;
+    for (const auto &item : catalog) {
+        if (item.chapter == QStringLiteral("冲突")) {
+            ++conflictCount;
+        }
+    }
+    QVERIFY2(conflictCount >= 6, qPrintable(QString::number(conflictCount)));
 }
 
 void TestPracticeService::unknownPracticeRejected() {
@@ -291,6 +317,125 @@ void TestPracticeService::revertPracticeDetectsRevertCommit() {
     QVERIFY(runGit(repo, {QStringLiteral("log"), QStringLiteral("-1"),
                           QStringLiteral("--format=%s")}, &subject));
     QVERIFY(QString::fromUtf8(subject).trimmed().startsWith(QStringLiteral("Revert")));
+}
+
+
+void TestPracticeService::keepOneSideRejectsTheOtherBranch() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString repo, error;
+    QVERIFY2(PracticeService::generate(QStringLiteral("conflict-keep-one-side"),
+                                       dir.path(), &repo, &error), qPrintable(error));
+    QVERIFY(!PracticeService::check(QStringLiteral("conflict-keep-one-side"), repo).passed);
+
+    // Keeping the wrong side must fail: the practice pins main.
+    QVERIFY(writeFile(repo + QStringLiteral("/app.js"),
+                      QStringLiteral("const who = \"feature 版本\";\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("app.js")}));
+    QVERIFY(runGit(repo, {QStringLiteral("commit"), QStringLiteral("--no-edit")}));
+    auto wrong = PracticeService::check(QStringLiteral("conflict-keep-one-side"), repo);
+    QVERIFY(!wrong.passed);
+    QVERIFY(wrong.detail.contains(QStringLiteral("main")));
+
+    // Redo and keep main.
+    QVERIFY(PracticeService::generate(QStringLiteral("conflict-keep-one-side"),
+                                      dir.path(), &repo, &error));
+    QVERIFY(writeFile(repo + QStringLiteral("/app.js"),
+                      QStringLiteral("const who = \"main 版本\";\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("app.js")}));
+    QVERIFY(runGit(repo, {QStringLiteral("commit"), QStringLiteral("--no-edit")}));
+    const auto ok = PracticeService::check(QStringLiteral("conflict-keep-one-side"), repo);
+    QVERIFY2(ok.passed, qPrintable(ok.detail));
+}
+
+void TestPracticeService::multipleFilesRejectsLeavingOneUnresolved() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString repo, error;
+    QVERIFY2(PracticeService::generate(QStringLiteral("conflict-multiple-files"),
+                                       dir.path(), &repo, &error), qPrintable(error));
+    QVERIFY(!PracticeService::check(QStringLiteral("conflict-multiple-files"), repo).passed);
+
+    // Resolving only alpha must still fail - missing a file is the mistake
+    // this practice exists to catch.
+    QVERIFY(writeFile(repo + QStringLiteral("/alpha.txt"),
+                      QStringLiteral("alpha = 主线改的\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("alpha.txt")}));
+    auto partial = PracticeService::check(QStringLiteral("conflict-multiple-files"), repo);
+    QVERIFY(!partial.passed);
+
+    QVERIFY(writeFile(repo + QStringLiteral("/beta.txt"),
+                      QStringLiteral("beta = 主线改的\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("beta.txt")}));
+    QVERIFY(runGit(repo, {QStringLiteral("commit"), QStringLiteral("--no-edit")}));
+    const auto ok = PracticeService::check(QStringLiteral("conflict-multiple-files"), repo);
+    QVERIFY2(ok.passed, qPrintable(ok.detail));
+}
+
+void TestPracticeService::rebaseConflictPassesAfterContinue() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString repo, error;
+    QVERIFY2(PracticeService::generate(QStringLiteral("conflict-rebase"),
+                                       dir.path(), &repo, &error), qPrintable(error));
+
+    auto before = PracticeService::check(QStringLiteral("conflict-rebase"), repo);
+    QVERIFY(!before.passed);
+    QVERIFY(before.detail.contains(QStringLiteral("rebase")));
+
+    QVERIFY(writeFile(repo + QStringLiteral("/config.ini"),
+                      QStringLiteral("mode = main\nmode_feature = feature\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("config.ini")}));
+    QVERIFY(runGit(repo, {QStringLiteral("rebase"), QStringLiteral("--continue")}));
+
+    const auto after = PracticeService::check(QStringLiteral("conflict-rebase"), repo);
+    QVERIFY2(after.passed, qPrintable(after.detail));
+}
+
+void TestPracticeService::cherryPickConflictPassesAfterContinue() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString repo, error;
+    QVERIFY2(PracticeService::generate(QStringLiteral("conflict-cherry-pick"),
+                                       dir.path(), &repo, &error), qPrintable(error));
+
+    auto before = PracticeService::check(QStringLiteral("conflict-cherry-pick"), repo);
+    QVERIFY(!before.passed);
+    QVERIFY(before.detail.contains(QStringLiteral("cherry-pick")));
+
+    QVERIFY(writeFile(repo + QStringLiteral("/version.txt"),
+                      QStringLiteral("version = 主线 + 修复分支\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("version.txt")}));
+    QVERIFY(runGit(repo, {QStringLiteral("cherry-pick"), QStringLiteral("--continue")}));
+
+    const auto after = PracticeService::check(QStringLiteral("conflict-cherry-pick"), repo);
+    QVERIFY2(after.passed, qPrintable(after.detail));
+}
+
+void TestPracticeService::abortPracticeRejectsCommittingTheMerge() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString repo, error;
+    QVERIFY2(PracticeService::generate(QStringLiteral("conflict-abort"),
+                                       dir.path(), &repo, &error), qPrintable(error));
+    QVERIFY(!PracticeService::check(QStringLiteral("conflict-abort"), repo).passed);
+
+    // Resolving and committing is NOT the goal here: that leaves a merge
+    // commit behind, which the history count catches.
+    QVERIFY(writeFile(repo + QStringLiteral("/app.js"),
+                      QStringLiteral("const who = \"main 版本\";\n")));
+    QVERIFY(runGit(repo, {QStringLiteral("add"), QStringLiteral("app.js")}));
+    QVERIFY(runGit(repo, {QStringLiteral("commit"), QStringLiteral("--no-edit")}));
+    auto committed = PracticeService::check(QStringLiteral("conflict-abort"), repo);
+    QVERIFY(!committed.passed);
+    QVERIFY(committed.detail.contains(QStringLiteral("放弃")));
+
+    // Aborting is.
+    QVERIFY(PracticeService::generate(QStringLiteral("conflict-abort"),
+                                      dir.path(), &repo, &error));
+    QVERIFY(runGit(repo, {QStringLiteral("merge"), QStringLiteral("--abort")}));
+    const auto ok = PracticeService::check(QStringLiteral("conflict-abort"), repo);
+    QVERIFY2(ok.passed, qPrintable(ok.detail));
 }
 
 QTEST_MAIN(TestPracticeService)

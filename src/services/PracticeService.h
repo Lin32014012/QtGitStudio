@@ -8,9 +8,10 @@
 struct PracticeDefinition {
     QString id;
     QString title;
-    QString goal;    // one sentence the student reads
-    QString level;   // 入门 / 进阶
-    QString hint;    // a single nudge, not a walkthrough
+    QString goal;     // one sentence the student reads
+    QString level;    // 入门 / 进阶
+    QString hint;     // a single nudge, not a walkthrough
+    QString chapter;  // 基础 / 冲突 - groups practices into chapters
 };
 
 struct PracticeCheck {
